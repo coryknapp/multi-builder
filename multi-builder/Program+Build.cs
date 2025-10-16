@@ -39,7 +39,7 @@ partial class Program
             if(PrintBuildQueueMessage)
             {
                 PrintBuildQueueMessage = false;
-                WriteSuccessLine("Build queue exhausted.");
+                OutputService.WriteSuccessLine("Build queue exhausted.");
             }
 
             await Task.Delay(500);
@@ -81,7 +81,7 @@ partial class Program
 
     private static async Task BuildProject(ManagedProject managedProcess)
     {
-        Console.WriteLine($"Running '{BuildCommand}' in '{managedProcess.Name}'");
+        OutputService.WriteInfoLine($"Running '{BuildCommand}' in '{managedProcess.Name}'");
 
         var psi = new ProcessStartInfo
         {
@@ -109,7 +109,7 @@ partial class Program
         {
             var logFile = Path.Combine(managedProcess.WorkingDirectory, $"{managedProcess.Name}_build.log");
             await File.WriteAllTextAsync(logFile, managedProcess.LastBuildOutput);
-            WriteBuildingLine($"Build output dumped to: {logFile}");
+            OutputService.WriteBuildingLine($"Build output dumped to: {logFile}");
         }
 
         if (process.ExitCode == 1)
@@ -119,18 +119,18 @@ partial class Program
             managedProcess.ErrorMessages = ProcessOutputForErrors(output);
             if (IsContentiousResourceFailure(managedProcess) && managedProcess.RetryAttempts <= MaxRetryAtempts)
             {
-                WriteErrorLine($"{managedProcess.Name} build failed due to contentious resource. Retrying attempt {managedProcess.RetryAttempts} of {MaxRetryAtempts}...");
+                OutputService.WriteErrorLine($"{managedProcess.Name} build failed due to contentious resource. Retrying attempt {managedProcess.RetryAttempts} of {MaxRetryAtempts}...");
                 BuildQueue.Enqueue(managedProcess);
                 PrintBuildQueueMessage = true;
                 return;
             }
-            WriteErrorLine($"{managedProcess.Name} build failed.");
+            OutputService.WriteErrorLine($"{managedProcess.Name} build failed.");
         }
         else
         {
             managedProcess.BuildFailure = false;
             managedProcess.LastBuildTime = DateTime.Now;
-            WriteSuccessLine($"{managedProcess.Name} built successfully.");
+            OutputService.WriteSuccessLine($"{managedProcess.Name} built successfully.");
         }
     }
 

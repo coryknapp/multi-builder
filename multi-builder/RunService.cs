@@ -7,6 +7,13 @@ using System.Threading.Tasks;
 
 public class RunService
 {
+    public OutputService OutputService { get; }
+
+    public RunService(OutputService outputService)
+    {
+        OutputService = outputService;
+    }
+
     public void RunProject(ManagedProject managedProject)
     {
         var psi = new ProcessStartInfo
@@ -32,8 +39,8 @@ public class RunService
 
             if (managedProject.PrintOutputInRealTime)
             {
-                Program.WriteHeaderLine($"Output for {managedProject.Name}");
-                Console.WriteLine(args.Data);
+                OutputService.WriteHeaderLine($"Output for {managedProject.Name}");
+                OutputService.WriteInfoLine(args.Data);
             }
         };
         process.ErrorDataReceived += (sender, args) =>
@@ -45,8 +52,8 @@ public class RunService
 
             if (managedProject.PrintOutputInRealTime)
             {
-                Program.WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
-                Program.WriteErrorLine(args.Data);
+                OutputService.WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
+                OutputService.WriteErrorLine(args.Data);
             }
         };
 

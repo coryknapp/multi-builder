@@ -11,6 +11,7 @@ class InteractiveSession
 {
     private readonly BuildService BuildService;
     private readonly RunService RunService;
+    private readonly OutputService OutputService;
 
     private IList<ManagedProject> ManagedProjects;
     private ConsoleColor OriginalBackground;
@@ -26,10 +27,11 @@ class InteractiveSession
 
     private ICollection<Task> Tasks = new Collection<Task>();
 
-    public InteractiveSession(BuildService buildService, RunService runService)
+    public InteractiveSession(BuildService buildService, RunService runService, OutputService outputService)
     {
         BuildService = buildService;
         RunService = runService;
+        OutputService = outputService;
 
         ManagedProjects = Program.ManagedProjects;
 

@@ -15,7 +15,7 @@ partial class Program
 {
     private static void RunProject(ManagedProject managedProject)
     {
-        Console.WriteLine($"Running '{RunCommand}' in '{managedProject.Name}'");
+        OutputService.WriteInfoLine($"Running '{RunCommand}' in '{managedProject.Name}'");
 
         var psi = new ProcessStartInfo
         {
@@ -40,18 +40,8 @@ partial class Program
 
             if (managedProject.PrintOutputInRealTime)
             {
-                //if (managedProject.OutputStreamReader == null)
-                //{
-                //    managedProject.OutputStreamReader = new LineStreamReader();
-                //    managedProject.OutputStreamReader.LineReceived += (line) =>
-                //    {
-                //        WriteHeaderLine($"Output for {managedProject.Name}");
-                //        Console.WriteLine(line);
-                //    };
-                //}
-                WriteHeaderLine($"Output for {managedProject.Name}");
-                Console.WriteLine(args.Data);
-                //managedProject.OutputStreamReader.Add(args.Data);
+                OutputService.WriteHeaderLine($"Output for {managedProject.Name}");
+                OutputService.WriteInfoLine(args.Data);
             }
         };
         process.ErrorDataReceived += (sender, args) =>
@@ -59,13 +49,14 @@ partial class Program
             if (args.Data != null)
             {
                 managedProject.LiveOutput.Add(args.Data);
+
+                if (managedProject.PrintOutputInRealTime)
+                {
+                    OutputService.WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
+                    OutputService.WriteErrorLine(args.Data);
+                }
             }
 
-            if (managedProject.PrintOutputInRealTime)
-            {
-                WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
-                WriteErrorLine(args.Data);
-            }
         };
 
         process.Start();

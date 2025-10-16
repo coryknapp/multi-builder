@@ -97,7 +97,7 @@ partial class Program
         {
             if (BuildQueue.Contains(p))
             {
-                WriteErrorLine($"{p.Name} is already in the build queue.");
+                OutputService.WriteErrorLine($"{p.Name} is already in the build queue.");
                 return;
             }
             p.BuildFailure = false;
@@ -126,35 +126,35 @@ partial class Program
     {
         foreach (var cmd in commands)
         {
-            Console.WriteLine($"{string.Join(", ", cmd.Invocations)}: {cmd.HelpString}");
+            OutputService.WriteInfoLine($"{string.Join(", ", cmd.Invocations)}: {cmd.HelpString}");
         }
     }
 
     static void InvokePrintStatusCommand()
     {
-        WriteHeaderLine("Current running processes:");
+        OutputService.WriteHeaderLine("Current running processes:");
         int index = 1;
         foreach (var mp in ManagedProjects)
         {
             if (mp.IsBuilding)
             {
-                WriteBuildingLine($"{index++}: {mp.Name} (Building)");
+                OutputService.WriteBuildingLine($"{index++}: {mp.Name} (Building)");
             }
             else if (mp.IsRunning)
             {
-                WriteSuccessLine($"{index++}: {mp.Name} (Running)");
+                OutputService.WriteSuccessLine($"{index++}: {mp.Name} (Running)");
             }
             else if (mp.BuildFailure)
             {
-                WriteErrorLine($"{index++}: {mp.Name} (Failed)");
+                OutputService.WriteErrorLine($"{index++}: {mp.Name} (Failed)");
             }
             else if (mp.LastBuildTime == null)
             {
-                Console.WriteLine($"{index++}: {mp.Name} (never built)");
+                OutputService.WriteInfoLine($"{index++}: {mp.Name} (never built)");
             }
             else
             {
-                Console.WriteLine($"{index++}: {mp.Name} (built success at ${mp.LastBuildTime})");
+                OutputService.WriteInfoLine($"{index++}: {mp.Name} (built success at ${mp.LastBuildTime})");
             }
         }
     }
@@ -175,7 +175,7 @@ partial class Program
             }
             else
             {
-                WriteErrorLine($"No project corresponds to {i}");
+                OutputService.WriteErrorLine($"No project corresponds to {i}");
             }
         }
     }
