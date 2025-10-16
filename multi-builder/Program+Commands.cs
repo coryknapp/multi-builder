@@ -78,20 +78,20 @@ partial class Program
         },
     };
 
-    private static void InvokeTurnOnOutputCommand(CommandParameters parameters) =>
+    public static void InvokeTurnOnOutputCommand(CommandParameters parameters) =>
         InvokeForEachProject(parameters, (mp) =>
         {
             mp.PrintOutputInRealTime = true;
         });
 
-    private static void InvokeTurnOffOutputCommand(CommandParameters parameters) =>
+    public static void InvokeTurnOffOutputCommand(CommandParameters parameters) =>
         InvokeForEachProject(parameters, (mp) => mp.PrintOutputInRealTime = false);
 
 
-    private static void InvokeRunProjectsCommand(CommandParameters parameters) =>
+    public static void InvokeRunProjectsCommand(CommandParameters parameters) =>
         InvokeForEachProject(parameters, RunProject);
 
-    private static async Task InvokeBuildProjectsCommand(CommandParameters parameters)
+    public static async Task InvokeBuildProjectsCommand(CommandParameters parameters)
     {
         InvokeForEachProject(parameters, p =>
         {
@@ -108,22 +108,21 @@ partial class Program
             BuildQueue.Enqueue(p);
             PrintBuildQueueMessage = true;
         });
-
     }
 
-    private static void InvokeStopProjectsCommand(CommandParameters parameters) =>
+    public static void InvokeStopProjectsCommand(CommandParameters parameters) =>
         InvokeForEachProject(parameters, StopProject);
-    private static void StopProject(ManagedProject managedProject)
+    public static void StopProject(ManagedProject managedProject)
     {
         managedProject.RunProcess?.Kill();
         managedProject.BuildProcess?.Kill();
         managedProject.BuildFailure = false;
     }
 
-    private static List<int> GetAllProjectNumbers() =>
+    public static List<int> GetAllProjectNumbers() =>
         Enumerable.Range(1, ManagedProjects.Count).ToList();
 
-    private static void InvokePrintHelpCommand()
+    public static void InvokePrintHelpCommand()
     {
         foreach (var cmd in commands)
         {
@@ -160,13 +159,13 @@ partial class Program
         }
     }
 
-    private static void InvokePrintLastBuildOutputCommand(CommandParameters parameters) =>
+    public static void InvokePrintLastBuildOutputCommand(CommandParameters parameters) =>
                 InvokeForEachProject(parameters, PrintLastBuildOutput);
 
-    private static void InvokePrintLiveProcessOutputCommand(CommandParameters parameters) =>
+    public static void InvokePrintLiveProcessOutputCommand(CommandParameters parameters) =>
         InvokeForEachProject(parameters, PrintLiveProcessOutput);
 
-    private static void InvokeForEachProject(CommandParameters parameters, Action<ManagedProject> action)
+    public static void InvokeForEachProject(CommandParameters parameters, Action<ManagedProject> action)
     {
         foreach (var i in parameters.ProjectNumbers)
         {

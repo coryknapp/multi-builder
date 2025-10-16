@@ -6,16 +6,18 @@ partial class Program
     static void ParseOptions(string[] args)
     {
         var directoriesOption = DirectoriesOption();
+        var interactiveOption = InteractiveOption();
 
         var rootCommand = new RootCommand("Multi-builder tool")
         {
             directoriesOption,
-
+            interactiveOption,
         };
 
         rootCommand.SetAction(parseResult =>
         {
             Directories = parseResult.GetValue(directoriesOption);
+            StartInInteractiveMode = parseResult.GetValue(interactiveOption);
         });
 
         rootCommand.Parse(args).Invoke();
@@ -48,5 +50,13 @@ partial class Program
                     }
                 }
             },
+        };
+
+    static Option<bool> InteractiveOption() =>
+        new("--interactive")
+        {
+            Description = "Start in interactive mode",
+            Required = false,
+            Aliases = { "-i" },
         };
 }

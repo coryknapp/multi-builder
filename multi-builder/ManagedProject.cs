@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 
-class ManagedProject
+public class ManagedProject
 {
     public string Name { get; set; }
     public string WorkingDirectory { get; set; }
@@ -18,6 +18,4 @@ class ManagedProject
     public DateTime? LastBuildTime { get; set; }
     public List<string> LiveOutput { get; set; } = new List<string>();
     public bool PrintOutputInRealTime { get; internal set; }
-    public LineStreamReader? ErrorStreamReader { get; set; }
-    public LineStreamReader? OutputStreamReader { get; set; }
 }

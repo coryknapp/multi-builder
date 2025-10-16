@@ -1,26 +1,33 @@
-﻿using System.CommandLine;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.CommandLine;
 using System.CommandLine.Invocation;
 
-partial class Program
+public partial class Program
 {
     static List<string> Directories;
 
-    static List<ManagedProject> ManagedProjects;
+    public static bool StartInInteractiveMode { get; private set; }
+
+    static public List<ManagedProject> ManagedProjects;
 
     static Queue<ManagedProject> BuildQueue = new Queue<ManagedProject>();
 
     static bool PrintBuildQueueMessage = false;
 
-    static string BuildCommand = "dotnet build -c Debug";
+    static public string BuildCommand = "dotnet build -c Debug";
 
-    static string RunCommand = "dotnet run --no-build --no-restore";
+    static public string RunCommand = "dotnet run --no-build --no-restore";
 
-    static int ConcurrentBuildProcesses = 4;
+    static public int ConcurrentBuildProcesses = 4;
 
-    static int MaxRetryAtempts = 4;
-    static bool DumpBuildOutputToFile { get; set; } = false; // Set to true to enable dumping
+    static public int MaxRetryAtempts = 4;
+
+    static public bool DumpBuildOutputToFile { get; set; } = false; // Set to true to enable dumping
 
     static SemaphoreSlim BuildQueueSemaphore = new SemaphoreSlim(ConcurrentBuildProcesses);
+
+    static OutputService OutputService;
 
     static async Task Main(string[] args)
     {
@@ -28,10 +35,29 @@ partial class Program
 
         AppDomain.CurrentDomain.ProcessExit += (s, e) => PrepareToExit();
 
+        var services = new ServiceCollection();
+        services.AddSingleton<OutputService>();
+        services.AddSingleton<InteractiveSession>();
+        services.AddSingleton<ProcessManagerService>();
+        services.AddSingleton<RunService>();
+        services.AddSingleton<BuildService>();
+
+        var serviceProvider = services.BuildServiceProvider();
+
         InitalizeManagedProcessesDictionary();
 
+        OutputService = serviceProvider.GetRequiredService<OutputService>();
+
+        if (StartInInteractiveMode)
+        {
+            BuildService buildService = serviceProvider.GetRequiredService<BuildService>();
+            _ = buildService.StartBuildQueueProcessing();
+            var session = serviceProvider.GetRequiredService<InteractiveSession>();
+            session.StartInteractiveSession();
+        }
+
         _ = CheckBuildQueue();
-        
+
         // read user input loop
         while (true)
         {
@@ -91,7 +117,7 @@ partial class Program
             }
             catch (Exception ex)
             {
-                WriteErrorLine($"Failed to kill process for {mp.Name}: {ex.Message}");
+                OutputService.WriteErrorLine($"Failed to kill process for {mp.Name}: {ex.Message}");
             }
         }
     }
@@ -105,52 +131,16 @@ partial class Program
         }).ToList();
     }
 
-    static void WriteErrorLine(string message)
-    {
-        var originalColor = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine(message);
-        Console.ForegroundColor = originalColor;
-    }
-
-    static void WriteSuccessLine(string message)
-    {
-        var originalColor = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine(message);
-        Console.ForegroundColor = originalColor;
-    }
-
-    static void WriteBuildingLine(string message)
-    {
-        var originalColor = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine(message);
-        Console.ForegroundColor = originalColor;
-    }
-
-    static void WriteHeaderLine(string message)
-    {
-        var originalBackground = Console.BackgroundColor;
-        var originalForeground = Console.ForegroundColor;
-        Console.BackgroundColor = ConsoleColor.Cyan;
-        Console.ForegroundColor = ConsoleColor.Black;
-        Console.Write($" --- {message} ---");
-        Console.BackgroundColor = originalBackground;
-        Console.ForegroundColor = originalForeground;
-        Console.WriteLine();
-    }
-
     private static void PrintLastBuildOutput(ManagedProject managedProject)
     {
-        WriteHeaderLine($"Last build output for {managedProject.Name}");
+        OutputService.WriteHeaderLine($"Last build output for {managedProject.Name}");
         if (!string.IsNullOrEmpty(managedProject.LastBuildOutput))
         {
-            Console.WriteLine(managedProject.LastBuildOutput);
+            OutputService.WriteInfoLine(managedProject.LastBuildOutput);
         }
         else
         {
-            Console.WriteLine("No build output available.");
+            OutputService.WriteInfoLine("No build output available.");
         }
     }
 
@@ -158,15 +148,15 @@ partial class Program
     {
         if (managedProject.LiveOutput.Count > 0)
         {
-            WriteHeaderLine($"Live output for {managedProject.Name}");
+            OutputService.WriteHeaderLine($"Live output for {managedProject.Name}");
             foreach (var line in managedProject.LiveOutput)
             {
-                Console.WriteLine(line);
+                OutputService.WriteInfoLine(line);
             }
         }
         else
         {
-            Console.WriteLine("No output available yet.");
+            OutputService.WriteInfoLine("No output available yet.");
         }
     }
 }
