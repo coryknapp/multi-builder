@@ -7,11 +7,14 @@ using System.Threading.Tasks;
 
 public class RunService
 {
-    public OutputService OutputService { get; }
+    private readonly TextService TextService;
 
-    public RunService(OutputService outputService)
+    private readonly OptionService OptionService;
+
+    public RunService(TextService textService, OptionService optionService)
     {
-        OutputService = outputService;
+        TextService = textService;
+        OptionService = optionService;
     }
 
     public void RunProject(ManagedProject managedProject)
@@ -19,7 +22,7 @@ public class RunService
         var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",
-            Arguments = $"/c {Program.RunCommand}",
+            Arguments = $"/c {OptionService.RunCommand}",
             WorkingDirectory = managedProject.WorkingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -39,8 +42,8 @@ public class RunService
 
             if (managedProject.PrintOutputInRealTime)
             {
-                OutputService.WriteHeaderLine($"Output for {managedProject.Name}");
-                OutputService.WriteInfoLine(args.Data);
+                TextService.WriteHeaderLine($"Output for {managedProject.Name}");
+                TextService.WriteInfoLine(args.Data);
             }
         };
         process.ErrorDataReceived += (sender, args) =>
@@ -52,8 +55,8 @@ public class RunService
 
             if (managedProject.PrintOutputInRealTime)
             {
-                OutputService.WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
-                OutputService.WriteErrorLine(args.Data);
+                TextService.WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
+                TextService.WriteErrorLine(args.Data);
             }
         };
 

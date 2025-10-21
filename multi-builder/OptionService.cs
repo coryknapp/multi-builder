@@ -1,9 +1,18 @@
-﻿using System.CommandLine;
-using System.IO;
 
-partial class Program
+using Microsoft.Extensions.DependencyInjection;
+using System.CommandLine;
+
+public class OptionService
 {
-    static void ParseOptions(string[] args)
+    public List<string> Directories { get; set; } = new();
+    public bool StartInInteractiveMode { get; set; }
+    public int ConcurrentBuildProcesses { get; set; } = 4;
+    public int MaxRetryAtempts { get; set; } = 4;
+    public string BuildCommand { get; set; } = "dotnet build -c Debug";
+    public string RunCommand { get; set; } = "dotnet run --no-build --no-restore";
+    public bool DumpBuildOutputToFile { get; set; } = false;
+
+    public void ParseOptions(string[] args)
     {
         var directoriesOption = DirectoriesOption();
         var interactiveOption = InteractiveOption();
@@ -23,7 +32,7 @@ partial class Program
         rootCommand.Parse(args).Invoke();
     }
 
-    static Option<List<string>> DirectoriesOption() =>
+    private Option<List<string>> DirectoriesOption() =>
         new("--directories")
         {
             Description = "List of project directories to manage",
@@ -52,7 +61,7 @@ partial class Program
             },
         };
 
-    static Option<bool> InteractiveOption() =>
+    private Option<bool> InteractiveOption() =>
         new("--interactive")
         {
             Description = "Start in interactive mode",

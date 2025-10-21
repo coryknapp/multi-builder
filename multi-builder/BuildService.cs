@@ -7,24 +7,25 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-internal class BuildService
+public class BuildService
 {
-    private readonly ProcessManagerService ProcessManagerService;
+    private readonly OptionService OptionService;
 
     private Queue<ManagedProject> BuildQueue = new Queue<ManagedProject>();
-    private SemaphoreSlim BuildQueueSemaphore = new SemaphoreSlim(Program.ConcurrentBuildProcesses);
-
-    public bool PrintBuildQueueMessage { get; private set; }
-
+    private readonly SemaphoreSlim BuildQueueSemaphore;
+    
     public event EventHandler BuildStarted;
     public event EventHandler BuildComplete;
     public event EventHandler BuildFailed;
     public event EventHandler BuildRetried;
     public event EventHandler OutputFileWritten;
 
-    public BuildService(ProcessManagerService processManagerService)
+    public bool PrintBuildQueueMessage { get; private set; }
+
+    public BuildService(OptionService optionService)
     {
-        ProcessManagerService = processManagerService;
+        OptionService = optionService;
+        BuildQueueSemaphore = new SemaphoreSlim(OptionService.ConcurrentBuildProcesses);
     }
 
     public async Task StartBuildQueueProcessing()
@@ -60,7 +61,6 @@ internal class BuildService
     {
         if (BuildQueue.Contains(managedProject))
         {
-            //WriteErrorLine($"{p.Name} is already in the build queue.");
             return;
         }
         managedProject.BuildFailure = false;
@@ -105,13 +105,14 @@ internal class BuildService
         return null;
     }
 
-    private async Task BuildProject(ManagedProject managedProcess)
+    private async Task BuildProject(ManagedProject managedProject)
     {
+        BuildStarted.Invoke(this, new BuildEventArgs(managedProject));
         var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",
-            Arguments = $"/c {Program.BuildCommand}",
-            WorkingDirectory = managedProcess.WorkingDirectory,
+            Arguments = $"/c {OptionService.BuildCommand}",
+            WorkingDirectory = managedProject.WorkingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -119,7 +120,7 @@ internal class BuildService
         };
 
         var process = new Process { StartInfo = psi };
-        managedProcess.BuildProcess = process;
+        managedProject.BuildProcess = process;
         process.Start();
 
         string output = await process.StandardOutput.ReadToEndAsync();
@@ -127,34 +128,34 @@ internal class BuildService
 
         await process.WaitForExitAsync();
 
-        managedProcess.LastBuildOutput = output + Environment.NewLine + error;
+        managedProject.LastBuildOutput = output + Environment.NewLine + error;
 
-        if (Program.DumpBuildOutputToFile)
+        if (OptionService.DumpBuildOutputToFile)
         {
-            var logFile = Path.Combine(managedProcess.WorkingDirectory, $"{managedProcess.Name}_build.log");
-            await File.WriteAllTextAsync(logFile, managedProcess.LastBuildOutput);
+            var logFile = Path.Combine(managedProject.WorkingDirectory, $"{managedProject.Name}_build.log");
+            await File.WriteAllTextAsync(logFile, managedProject.LastBuildOutput);
             this.OutputFileWritten?.Invoke(this, new OuputFileEventArgs(logFile));
         }
 
         if (process.ExitCode == 1)
         {
-            managedProcess.BuildFailure = true;
-            managedProcess.RetryAttempts++;
-            managedProcess.ErrorMessages = ProcessOutputForErrors(output);
-            if (IsContentiousResourceFailure(managedProcess) && managedProcess.RetryAttempts <= Program.MaxRetryAtempts)
+            managedProject.BuildFailure = true;
+            managedProject.RetryAttempts++;
+            managedProject.ErrorMessages = ProcessOutputForErrors(output);
+            if (IsContentiousResourceFailure(managedProject) && managedProject.RetryAttempts <= OptionService.MaxRetryAtempts)
             {
-                this.BuildRetried?.Invoke(this, new ProcessEventArgs(null));
-                BuildQueue.Enqueue(managedProcess);
+                this.BuildRetried?.Invoke(this, new BuildEventArgs(managedProject));
+                BuildQueue.Enqueue(managedProject);
                 this.PrintBuildQueueMessage = true;
                 return;
             }
-            this.BuildFailed?.Invoke(this, new ProcessEventArgs(null));
+            this.BuildFailed?.Invoke(this, new BuildEventArgs(managedProject));
         }
         else
         {
-            managedProcess.BuildFailure = false;
-            managedProcess.LastBuildTime = DateTime.Now;
-            this.BuildComplete?.Invoke(this, new ProcessEventArgs(null));
+            managedProject.BuildFailure = false;
+            managedProject.LastBuildTime = DateTime.Now;
+            this.BuildComplete?.Invoke(this, new BuildEventArgs(managedProject));
         }
     }
 
@@ -178,5 +179,15 @@ public class OuputFileEventArgs : EventArgs
     public OuputFileEventArgs(string filePath)
     {
         FilePath = filePath;
+    }
+}
+
+public class BuildEventArgs : EventArgs
+{
+    public ManagedProject ManagedProject { get; private set; }
+
+    public BuildEventArgs(ManagedProject managedProject)
+    {
+        ManagedProject = managedProject;
     }
 }

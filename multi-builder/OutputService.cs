@@ -6,59 +6,89 @@ using System.Threading.Tasks;
 
 public class OutputService
 {
-    public void WriteInfoLine(string message)
+    private TextService TextService { get; }
+
+    public OutputService(TextService textService)
     {
-        lock (this)
+        TextService = textService;
+    }
+
+    public void PrintPrompt() =>
+        TextService.WritePromptLine(">");
+
+    public void PrintStatus(IEnumerable<ManagedProject> managedProjects)
+    {
+        this.TextService.WriteHeaderLine("Current running processes:");
+        int index = 1;
+        foreach (var mp in managedProjects)
         {
-            Console.WriteLine(message);
+            if (mp.IsBuilding)
+            {
+                TextService.WriteBuildingLine($"{index++}: {mp.Name} (Building)");
+            }
+            else if (mp.IsRunning)
+            {
+                TextService.WriteSuccessLine($"{index++}: {mp.Name} (Running)");
+            }
+            else if (mp.BuildFailure)
+            {
+                TextService.WriteErrorLine($"{index++}: {mp.Name} (Failed)");
+            }
+            else if (mp.LastBuildTime == null)
+            {
+                TextService.WriteInfoLine($"{index++}: {mp.Name} (never built)");
+            }
+            else
+            {
+                TextService.WriteInfoLine($"{index++}: {mp.Name} (built success at ${mp.LastBuildTime})");
+            }
         }
     }
 
-    public void WriteErrorLine(string message)
+    public void PrintHelpMessage(List<Command> commands)
     {
-        lock (this)
+        foreach (var cmd in commands)
         {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
+            TextService.WriteInfoLine($"{string.Join(", ", cmd.Invocations)}: {cmd.HelpString}");
         }
     }
 
-    public void WriteSuccessLine(string message)
+    public void PrintBuildOutput(ManagedProject managedProject)
     {
-        lock (this)
+        TextService.WriteHeaderLine($"Last build output for {managedProject.Name}");
+        if (!string.IsNullOrEmpty(managedProject.LastBuildOutput))
         {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
+            TextService.WriteInfoLine(managedProject.LastBuildOutput);
+        }
+        else
+        {
+            TextService.WriteInfoLine("No build output available.");
         }
     }
 
-    public void WriteBuildingLine(string message)
+    public void PrintRunOutput(ManagedProject managedProject)
     {
-        lock (this)
+        if (managedProject.LiveOutput.Count > 0)
         {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
+            TextService.WriteHeaderLine($"Run output for {managedProject.Name}");
+            foreach (var line in managedProject.LiveOutput)
+            {
+                TextService.WriteInfoLine(line);
+            }
+        }
+        else
+        {
+            TextService.WriteInfoLine("No output available yet.");
         }
     }
 
-    public void WriteHeaderLine(string message)
+    public void EnableLiveRunOutput(ManagedProject managedProject)
     {
-        lock (this)
-        {
-            var originalBackground = Console.BackgroundColor;
-            var originalForeground = Console.ForegroundColor;
-            Console.BackgroundColor = ConsoleColor.Cyan;
-            Console.ForegroundColor = ConsoleColor.Black;
-            Console.Write($" --- {message} ---");
-            Console.BackgroundColor = originalBackground;
-            Console.ForegroundColor = originalForeground;
-            Console.WriteLine();
-        }
+        managedProject.PrintOutputInRealTime = true;
+    }
+
+    public void DisableLiveRunOutput(ManagedProject managedProject)
+    {
+        managedProject.PrintOutputInRealTime = false;
     }
 }
