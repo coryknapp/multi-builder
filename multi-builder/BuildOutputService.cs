@@ -15,6 +15,7 @@ public class BuildOutputService
         TextService = textService;
         BuildService.BuildStarted += OnBuildStarted;
         BuildService.BuildComplete += OnBuildComplete;
+        BuildService.BuildQueueEmpty += OnBuildQueueEmpty;
         BuildService.BuildFailed += OnBuildFailed;
         BuildService.BuildRetried += OnBuildRetried;
         BuildService.OutputFileWritten += OnOutputFileWritten;
@@ -28,6 +29,11 @@ public class BuildOutputService
     private void OnBuildComplete(object sender, EventArgs e)
     {
         TextService.WriteSuccessLine($"Succesfully built {GetManagedProjectName(e)}.");
+    }
+
+    private void OnBuildQueueEmpty(object sender, EventArgs e)
+    {
+        TextService.WriteSuccessLine("All builds complete.");
     }
 
     private void OnBuildFailed(object sender, EventArgs e)

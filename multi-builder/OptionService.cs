@@ -5,7 +5,6 @@ using System.CommandLine;
 public class OptionService
 {
     public List<string> Directories { get; set; } = new();
-    public bool StartInInteractiveMode { get; set; }
     public int ConcurrentBuildProcesses { get; set; } = 4;
     public int MaxRetryAtempts { get; set; } = 4;
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
@@ -15,18 +14,18 @@ public class OptionService
     public void ParseOptions(string[] args)
     {
         var directoriesOption = DirectoriesOption();
-        var interactiveOption = InteractiveOption();
+        var concurrentBuildProcessesOption = ConcurrentBuildProcessesOption();
 
         var rootCommand = new RootCommand("Multi-builder tool")
         {
             directoriesOption,
-            interactiveOption,
+            concurrentBuildProcessesOption,
         };
 
         rootCommand.SetAction(parseResult =>
         {
             Directories = parseResult.GetValue(directoriesOption);
-            StartInInteractiveMode = parseResult.GetValue(interactiveOption);
+            ConcurrentBuildProcesses = parseResult.GetValue(concurrentBuildProcessesOption);
         });
 
         rootCommand.Parse(args).Invoke();
@@ -61,11 +60,11 @@ public class OptionService
             },
         };
 
-    private Option<bool> InteractiveOption() =>
-        new("--interactive")
+    private Option<int> ConcurrentBuildProcessesOption() =>
+        new("--concurrent-build-processes")
         {
-            Description = "Start in interactive mode",
+            Description = "Number of allowed concurrent build processes",
             Required = false,
-            Aliases = { "-i" },
+            Aliases = { "-c" },
         };
 }

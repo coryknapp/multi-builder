@@ -13,14 +13,13 @@ public class BuildService
 
     private Queue<ManagedProject> BuildQueue = new Queue<ManagedProject>();
     private readonly SemaphoreSlim BuildQueueSemaphore;
-    
+
     public event EventHandler BuildStarted;
     public event EventHandler BuildComplete;
+    public event EventHandler BuildQueueEmpty;
     public event EventHandler BuildFailed;
     public event EventHandler BuildRetried;
     public event EventHandler OutputFileWritten;
-
-    public bool PrintBuildQueueMessage { get; private set; }
 
     public BuildService(OptionService optionService)
     {
@@ -69,7 +68,6 @@ public class BuildService
         managedProject.LastBuildOutput = string.Empty;
         managedProject.ErrorMessages = Array.Empty<string>();
         BuildQueue.Enqueue(managedProject);
-        PrintBuildQueueMessage = true;
     }
 
     private static bool IsContentiousResourceFailure(ManagedProject managedProject)
@@ -146,7 +144,6 @@ public class BuildService
             {
                 this.BuildRetried?.Invoke(this, new BuildEventArgs(managedProject));
                 BuildQueue.Enqueue(managedProject);
-                this.PrintBuildQueueMessage = true;
                 return;
             }
             this.BuildFailed?.Invoke(this, new BuildEventArgs(managedProject));
