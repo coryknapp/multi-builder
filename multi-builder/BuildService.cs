@@ -29,14 +29,21 @@ public class BuildService
 
     public async Task StartBuildQueueProcessing()
     {
-        var buildTasks = new List<Task>();
+        var runningTasks = new HashSet<Task>();
+        bool wasEmpty = true; // Track previous state to avoid duplicate events
+
         while (true)
         {
-            while (BuildQueue.Count > 0)
+            // Clean up completed tasks
+            runningTasks.RemoveWhere(t => t.IsCompleted);
+
+            // Start new builds if queue has items and we have capacity
+            while (BuildQueue.Count > 0 && runningTasks.Count < OptionService.ConcurrentBuildProcesses)
             {
                 await BuildQueueSemaphore.WaitAsync();
                 var mp = BuildQueue.Dequeue();
-                buildTasks.Add(Task.Run(async () =>
+
+                var task = Task.Run(async () =>
                 {
                     try
                     {
@@ -46,11 +53,25 @@ public class BuildService
                     {
                         BuildQueueSemaphore.Release();
                     }
-                }));
+                });
 
-            };
+                runningTasks.Add(task);
+                wasEmpty = false; // We now have work
+            }
 
-            // TODO check build queue empty
+            // Check if we're truly empty: no queue items AND no running builds
+            bool isTrulyEmpty = BuildQueue.Count == 0 && runningTasks.Count == 0;
+
+            if (isTrulyEmpty && !wasEmpty)
+            {
+                // Queue just became empty - fire the event
+                BuildQueueEmpty?.Invoke(this, EventArgs.Empty);
+                wasEmpty = true;
+            }
+            else if (!isTrulyEmpty)
+            {
+                wasEmpty = false;
+            }
 
             await Task.Delay(500);
         }
@@ -142,7 +163,7 @@ public class BuildService
             managedProject.ErrorMessages = ProcessOutputForErrors(output);
             if (IsContentiousResourceFailure(managedProject) && managedProject.RetryAttempts <= OptionService.MaxRetryAtempts)
             {
-                this.BuildRetried?.Invoke(this, new BuildEventArgs(managedProject));
+                this.BuildRetried?.Invoke(this, new RetryEventArgs(managedProject, managedProject.RetryAttempts, OptionService.MaxRetryAtempts));
                 BuildQueue.Enqueue(managedProject);
                 return;
             }
@@ -173,6 +194,7 @@ public class BuildService
 public class OuputFileEventArgs : EventArgs
 {
     public string FilePath { get; }
+
     public OuputFileEventArgs(string filePath)
     {
         FilePath = filePath;
@@ -186,5 +208,19 @@ public class BuildEventArgs : EventArgs
     public BuildEventArgs(ManagedProject managedProject)
     {
         ManagedProject = managedProject;
+    }
+}
+
+public class RetryEventArgs : BuildEventArgs
+{
+    public int FailCount { get; private set; }
+
+    public int MaxFailCount { get; private set; }
+
+    public RetryEventArgs(ManagedProject managedProject, int failCount, int maxFailCount)
+        : base(managedProject)
+    {
+        FailCount = failCount;
+        MaxFailCount = maxFailCount;
     }
 }

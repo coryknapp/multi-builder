@@ -8,11 +8,13 @@ public class BuildOutputService
 {
     private readonly BuildService BuildService;
     private readonly TextService TextService;
+    private readonly OptionService OptionsService;
 
-    public BuildOutputService(TextService textService, BuildService buildService)
+    public BuildOutputService(TextService textService, BuildService buildService, OptionService optionService)
     {
         BuildService = buildService;
         TextService = textService;
+        OptionsService = optionService;
         BuildService.BuildStarted += OnBuildStarted;
         BuildService.BuildComplete += OnBuildComplete;
         BuildService.BuildQueueEmpty += OnBuildQueueEmpty;
@@ -40,12 +42,15 @@ public class BuildOutputService
     {
         TextService.WriteErrorLine($"Failed to build {GetManagedProjectName(e)}.");
 
-        // TODO optional: display error details
+        if (this.OptionsService.OutputErrorsOnFailure)
+        {
+
+        }
     }
 
     private void OnBuildRetried(object sender, EventArgs e)
     {
-        TextService.WriteBuildingLine($"Building {GetManagedProjectName(e)}...");
+        TextService.WriteBuildingLine($"Retrying Building {GetManagedProjectName(e)}...");
     }
 
     private void OnOutputFileWritten(object sender, EventArgs e)

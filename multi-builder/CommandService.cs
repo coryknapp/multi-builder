@@ -14,6 +14,7 @@ public class CommandService
     public TextService TextService;
     public RunService RunService;
     public BuildService BuildService;
+    public BuildRunService BuildRunService;
     public OutputService OutputService;
 
     private List<Command> Commands;
@@ -22,11 +23,13 @@ public class CommandService
         TextService textService,
         RunService runService,
         BuildService buildService,
+        BuildRunService buildRunService,
         OutputService outputService)
     {
         TextService = textService;
         RunService = runService;
         BuildService = buildService;
+        BuildRunService = buildRunService;
         OutputService = outputService;
 
         InitializeCommands();
@@ -93,7 +96,7 @@ public class CommandService
             },
             new Command()
             {
-                Invocations = new List<string>{"stop", "st", "kill", "k"},
+                Invocations = new List<string>{"kill", "k"},
                 HelpString = "Stops running projects",
                 Action = (CommandParameters parameters) => {InvokeStopProjectsCommand(parameters); },
             },
@@ -111,29 +114,40 @@ public class CommandService
             },
             new Command()
             {
-                Invocations = new List<string>{"lastbuild", "lb", "buildoutput", "bo"},
+                Invocations = new List<string>{"build-run", "br"},
+                HelpString = "Builds and then runs the projects",
+                Action = (CommandParameters parameters) => {InvokeBuildRunCommand(parameters); },
+            },
+            new Command()
+            {
+                Invocations = new List<string>{"buildoutput", "bo"},
                 HelpString = "Prints the last build output for each project.",
                 Action = (CommandParameters parameters) => { InvokePrintLastBuildOutputCommand(parameters); },
             },
             new Command()
             {
-                Invocations = new List<string> { "run-output", "o" },
+                Invocations = new List<string> { "run-output", "ro" },
                 HelpString = "Dumps the live output of a running process.",
                 Action = (CommandParameters parameters) => { InvokePrintLiveProcessOutputCommand(parameters); },
             },
             new Command()
             {
-                Invocations = new List<string> { "turn-on-run-output", "ro" },
+                Invocations = new List<string> { "turn-on-live-run-output", "lo" },
                 HelpString = "Selected process dump output in real time.",
                 Action = (CommandParameters parameters) => { InvokeEnableLiveOutputCommand(parameters); },
             },
             new Command()
             {
-                Invocations = new List<string> { "turn-off-run-output", "roo" },
+                Invocations = new List<string> { "turn-off-live-run-output", "loo" },
                 HelpString = "Selected process stop dumping output in real time.",
                 Action = (CommandParameters parameters) => { InvokeDisableLiveOutputCommand(parameters); },
             },
         }; ;
+    }
+
+    private void InvokeBuildRunCommand(CommandParameters parameters)
+    {
+        InvokeForEachProject(parameters, (mp) => BuildRunService.BuildAndRunProject(mp));
     }
 
     private void InvokeEnableLiveOutputCommand(CommandParameters parameters) =>

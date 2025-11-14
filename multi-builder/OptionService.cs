@@ -10,6 +10,7 @@ public class OptionService
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
     public string RunCommand { get; set; } = "dotnet run --no-build --no-restore";
     public bool DumpBuildOutputToFile { get; set; } = false;
+    public bool OutputErrorsOnFailure { get; internal set; }
 
     public void ParseOptions(string[] args)
     {

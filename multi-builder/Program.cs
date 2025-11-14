@@ -22,6 +22,7 @@ public class Program
         services.AddSingleton<TextService>();
         services.AddSingleton<RunService>();
         services.AddSingleton<BuildService>();
+        services.AddSingleton<BuildRunService>();
         services.AddSingleton<BuildOutputService>();
         services.AddSingleton<OutputService>();
         services.AddSingleton<CommandService>();
