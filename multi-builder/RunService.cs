@@ -8,9 +8,7 @@ using System.Threading.Tasks;
 public class RunService
 {
     private readonly TextService TextService;
-
     private readonly OptionService OptionService;
-
     public RunService(TextService textService, OptionService optionService)
     {
         TextService = textService;
