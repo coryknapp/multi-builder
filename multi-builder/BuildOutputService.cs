@@ -50,7 +50,8 @@ public class BuildOutputService
 
     private void OnBuildRetried(object sender, EventArgs e)
     {
-        TextService.WriteBuildingLine($"Retrying Building {GetManagedProjectName(e)}...");
+        var retryBuildEventArgs = e as RetryEventArgs;
+        TextService.WriteBuildingLine($"Retrying Building {GetManagedProjectName(e)} ({retryBuildEventArgs.FailCount}/{retryBuildEventArgs.MaxFailCount})...");
     }
 
     private void OnOutputFileWritten(object sender, EventArgs e)

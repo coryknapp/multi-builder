@@ -8,3 +8,4 @@
 - [x] Fix header display
 - [ ] Make headless version
 - [ ] Pretty print build output
+- [ ] Sometimes we fail to kill the msbuild process, fix that

@@ -6,59 +6,44 @@ using System.Threading.Tasks;
 
 public class TextService
 {
+    private bool promptDisplayed = false;
+    private readonly object consoleLock = new object();
+
     public void WritePromptLine(string prompt)
     {
-        lock (this)
+        lock (consoleLock)
         {
             Console.Write(prompt);
+            promptDisplayed = true;
         }
     }
 
     public void WriteInfoLine(string message)
     {
-        lock (this)
-        {
-            Console.WriteLine(message);
-        }
+        WriteLineWithPromptHandling(message, ConsoleColor.Gray);
     }
 
     public void WriteErrorLine(string message)
     {
-        lock (this)
-        {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
-        }
+        WriteLineWithPromptHandling(message, ConsoleColor.Red);
     }
 
     public void WriteSuccessLine(string message)
     {
-        lock (this)
-        {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
-        }
+        WriteLineWithPromptHandling(message, ConsoleColor.Green);
     }
 
     public void WriteBuildingLine(string message)
     {
-        lock (this)
-        {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
-        }
+        WriteLineWithPromptHandling(message, ConsoleColor.Cyan);
     }
 
     public void WriteHeaderLine(string message)
     {
-        lock (this)
+        lock (consoleLock)
         {
+            ClearCurrentLine();
+            
             var originalBackground = Console.BackgroundColor;
             var originalForeground = Console.ForegroundColor;
             Console.BackgroundColor = ConsoleColor.Cyan;
@@ -67,6 +52,39 @@ public class TextService
             Console.BackgroundColor = originalBackground;
             Console.ForegroundColor = originalForeground;
             Console.WriteLine();
+            
+            RestorePrompt();
         }
+    }
+
+    private void WriteLineWithPromptHandling(string message, ConsoleColor color)
+    {
+        lock (consoleLock)
+        {
+            ClearCurrentLine();
+            
+            var originalColor = Console.ForegroundColor;
+            Console.ForegroundColor = color;
+            Console.WriteLine(message);
+            Console.ForegroundColor = originalColor;
+            
+            RestorePrompt();
+        }
+    }
+
+    private void ClearCurrentLine()
+    {
+        if (promptDisplayed)
+        {
+            // Move cursor to beginning of line and clear it
+            Console.Write("\r" + new string(' ', Console.WindowWidth - 1) + "\r");
+            promptDisplayed = false;
+        }
+    }
+
+    private void RestorePrompt()
+    {
+        Console.Write(">");
+        promptDisplayed = true;
     }
 }

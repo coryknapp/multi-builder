@@ -19,6 +19,8 @@ public class RunService
 
     public void RunProject(ManagedProject managedProject)
     {
+        managedProject.RunProcess?.Kill(true);
+
         var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",

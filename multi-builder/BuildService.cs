@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 public class BuildService
 {
@@ -49,6 +43,10 @@ public class BuildService
                     {
                         await BuildProject(mp);
                     }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                    }
                     finally
                     {
                         BuildQueueSemaphore.Release();
@@ -60,15 +58,15 @@ public class BuildService
             }
 
             // Check if we're truly empty: no queue items AND no running builds
-            bool isTrulyEmpty = BuildQueue.Count == 0 && runningTasks.Count == 0;
+            bool isEmpty = BuildQueue.Count == 0 && runningTasks.Count == 0;
 
-            if (isTrulyEmpty && !wasEmpty)
+            if (isEmpty && !wasEmpty)
             {
                 // Queue just became empty - fire the event
                 BuildQueueEmpty?.Invoke(this, EventArgs.Empty);
                 wasEmpty = true;
             }
-            else if (!isTrulyEmpty)
+            else if (!isEmpty)
             {
                 wasEmpty = false;
             }
@@ -77,7 +75,7 @@ public class BuildService
         }
     }
 
-    public async Task EnqueueBuild(ManagedProject managedProject)
+    public void EnqueueBuild(ManagedProject managedProject)
     {
         if (BuildQueue.Contains(managedProject))
         {
@@ -121,12 +119,12 @@ public class BuildService
             return ("Error", errorMatch.Groups[1].Value, errorMatch.Groups[2].Value);
         }
 
-        return null;
+        return ("Unknown", string.Empty, line);
     }
 
     private async Task BuildProject(ManagedProject managedProject)
     {
-        BuildStarted.Invoke(this, new BuildEventArgs(managedProject));
+        BuildStarted?.Invoke(this, new BuildEventArgs(managedProject));
         var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",
@@ -161,13 +159,15 @@ public class BuildService
             managedProject.BuildFailure = true;
             managedProject.RetryAttempts++;
             managedProject.ErrorMessages = ProcessOutputForErrors(output);
+
+            this.BuildFailed?.Invoke(this, new BuildEventArgs(managedProject));
+            
             if (IsContentiousResourceFailure(managedProject) && managedProject.RetryAttempts <= OptionService.MaxRetryAtempts)
             {
                 this.BuildRetried?.Invoke(this, new RetryEventArgs(managedProject, managedProject.RetryAttempts, OptionService.MaxRetryAtempts));
                 BuildQueue.Enqueue(managedProject);
                 return;
             }
-            this.BuildFailed?.Invoke(this, new BuildEventArgs(managedProject));
         }
         else
         {
