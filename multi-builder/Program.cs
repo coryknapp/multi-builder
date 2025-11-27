@@ -44,11 +44,12 @@ public class Program
 
         _ = BuildService.StartBuildQueueProcessing();
         
+        ReadLine.HistoryEnabled = true;
+
         // read user input loop
         while (true)
         {
-            OutputService.PrintPrompt();
-            var input = Console.ReadLine();
+            string input = ReadLine.Read("> ");  // This handles everything automatically
             if (CommandService.ProcessCommand(input) == CommandResult.Exit)
                 break;
         }

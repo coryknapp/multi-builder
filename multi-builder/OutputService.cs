@@ -13,9 +13,6 @@ public class OutputService
         TextService = textService;
     }
 
-    public void PrintPrompt() =>
-        TextService.WritePromptLine(">");
-
     public void PrintStatus(IEnumerable<ManagedProject> managedProjects)
     {
         this.TextService.WriteHeaderLine("Current running processes:");
