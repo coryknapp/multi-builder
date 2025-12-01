@@ -4,12 +4,18 @@ using System.CommandLine;
 
 public class OptionService
 {
-    public List<string> Directories { get; set; } = new();
-    public int ConcurrentBuildProcesses { get; set; } = 4;
+    public List<string> Directories { get; set; }
+
+    public int ConcurrentBuildProcesses { get; set; }
+
     public int MaxRetryAtempts { get; set; } = 4;
+
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
+
     public string RunCommand { get; set; } = "dotnet run --no-build --no-restore";
+
     public bool DumpBuildOutputToFile { get; set; } = false;
+
     public bool OutputErrorsOnFailure { get; internal set; }
 
     public void ParseOptions(string[] args)
@@ -67,5 +73,6 @@ public class OptionService
             Description = "Number of allowed concurrent build processes",
             Required = false,
             Aliases = { "-c" },
+            DefaultValueFactory = (_) => 4,
         };
 }

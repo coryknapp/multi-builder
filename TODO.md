@@ -1,11 +1,4 @@
 #To do list
-- [?] Fix 'build queue empty' bug
-- [ ] implement run after build option
-- [ ] Implement exclutions
-- [ ] Implement project negation 
-- [x] Split up program.cs file
-- [x] Implement auto error outputing
-- [x] Fix header display
-- [ ] Make headless version
+- [ ] Implement exclusions
 - [ ] Pretty print build output
 - [ ] Sometimes we fail to kill the msbuild process, fix that

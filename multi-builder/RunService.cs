@@ -7,11 +7,9 @@ using System.Threading.Tasks;
 
 public class RunService
 {
-    private readonly TextService TextService;
     private readonly OptionService OptionService;
-    public RunService(TextService textService, OptionService optionService)
+    public RunService(OptionService optionService)
     {
-        TextService = textService;
         OptionService = optionService;
     }
 
@@ -39,24 +37,12 @@ public class RunService
             {
                 managedProject.LiveOutput.Add(args.Data);
             }
-
-            if (managedProject.PrintOutputInRealTime)
-            {
-                TextService.WriteHeaderLine($"Output for {managedProject.Name}");
-                TextService.WriteInfoLine(args.Data);
-            }
         };
         process.ErrorDataReceived += (sender, args) =>
         {
             if (args.Data != null)
             {
                 managedProject.LiveOutput.Add(args.Data);
-            }
-
-            if (managedProject.PrintOutputInRealTime)
-            {
-                TextService.WriteHeaderLine($"--- Error output for {managedProject.Name} ---");
-                TextService.WriteErrorLine(args.Data);
             }
         };
 
