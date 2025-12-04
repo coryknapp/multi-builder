@@ -10,9 +10,11 @@ public class InteractiveService
     private readonly BuildService buildService;
     private readonly RunService runService;
     private readonly BuildRunService buildRunService;
+    private readonly OutputService outputService;
 
     private int selectedIndex = 0;
     private bool isRunning = false;
+    private bool pauseDisplayUpdates = false;
     private LiveDisplayContext liveContext;
     private int animationFrame = 0; // Add animation frame counter
 
@@ -25,16 +27,20 @@ public class InteractiveService
     public InteractiveService(
         BuildService buildService,
         RunService runService,
-        BuildRunService buildRunService)
+        BuildRunService buildRunService,
+        OutputService outputService)
     {
         this.buildService = buildService;
         this.runService = runService;
         this.buildRunService = buildRunService;
+        this.outputService = outputService;
     }
 
     public async Task StartInteractiveMode(IList<ManagedProject> managedProjects, CancellationToken cancellationToken = default)
     {
         isRunning = true;
+        pauseDisplayUpdates = false;
+
         selectedIndex = 0;
 
         await AnsiConsole.Live(CreateInteractiveTable(managedProjects))
@@ -48,9 +54,19 @@ public class InteractiveService
                 {
                     while (isRunning && !cancellationToken.IsCancellationRequested)
                     {
-                        animationFrame++; // Increment animation frame
-                        UpdateDisplay(managedProjects);
-                        await Task.Delay(200, cancellationToken); // Faster updates for animation (200ms instead of 1000ms)
+                        try
+                        {
+                            if (!pauseDisplayUpdates)
+                            {
+                                animationFrame++; // Increment animation frame
+                                UpdateDisplay(managedProjects);
+                            }
+                            await Task.Delay(200, cancellationToken); // Faster updates for animation (200ms instead of 1000ms)
+                        }catch(Exception)
+                        {
+                            // for breakpoints
+                            return;
+                        }
                     }
                 });
 
@@ -72,6 +88,7 @@ public class InteractiveService
                 }
 
                 var key = Console.ReadKey(true);
+                bool applyToAll = (key.Modifiers & ConsoleModifiers.Shift) != 0;
 
                 switch (key.Key)
                 {
@@ -85,52 +102,46 @@ public class InteractiveService
                         UpdateDisplay(managedProjects);
                         break;
 
-                    case ConsoleKey.B: // Build
-                        if (selectedIndex < managedProjects.Count)
+                    case ConsoleKey.B: // Build (Shift+B builds all)
+                        ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
-                            var project = managedProjects[selectedIndex];
-                            buildService.EnqueueBuild(project);
-                        }
+                            buildService.EnqueueBuild(mp);
+                        });
                         break;
 
-                    case ConsoleKey.R: // Run
-                        if (selectedIndex < managedProjects.Count)
+                    case ConsoleKey.R: // Run (Shift+R runs all)
+                        ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
-                            var project = managedProjects[selectedIndex];
-                            runService.RunProject(project);
-                        }
+                            runService.RunProject(mp);
+                        });
                         break;
 
-                    case ConsoleKey.P: // Build and Run (P for "Play")
-                        if (selectedIndex < managedProjects.Count)
+                    case ConsoleKey.P: // Build and Run (Shift+P for all)
+                        ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
-                            var project = managedProjects[selectedIndex];
-                            _ = Task.Run(() => buildRunService.BuildAndRunProject(project));
-                        }
+                            _ = Task.Run(() => buildRunService.BuildAndRunProject(mp));
+                        });
                         break;
 
-                    case ConsoleKey.O: // Show Output
-                        if (selectedIndex < managedProjects.Count)
+                    case ConsoleKey.O: // Show Output (Shift+O shows output for all sequentially)
+                        ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
-                            var project = managedProjects[selectedIndex];
-                            ShowProjectOutput(project);
-                        }
+                            ShowProjectOutput(mp);
+                        });
                         break;
 
-                    case ConsoleKey.L: // Show Last build output
-                        if (selectedIndex < managedProjects.Count)
+                    case ConsoleKey.L: // Show Last build output (Shift+L for all sequentially)
+                        ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
-                            var project = managedProjects[selectedIndex];
-                            ShowBuildOutput(project);
-                        }
+                            ShowBuildOutput(mp);
+                        });
                         break;
 
-                    case ConsoleKey.K: // Kill/Stop
-                        if (selectedIndex < managedProjects.Count)
+                    case ConsoleKey.K: // Kill/Stop (Shift+K stops all)
+                        ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
-                            var project = managedProjects[selectedIndex];
-                            StopProject(project);
-                        }
+                            StopProject(mp);
+                        });
                         break;
 
                     case ConsoleKey.Q: // Quit
@@ -150,6 +161,28 @@ public class InteractiveService
         }
     }
 
+    private void ExecuteForProjects(bool all, IList<ManagedProject> projects, Action<ManagedProject> action)
+    {
+        if (!all)
+        {
+            // Apply to selected project only
+            if (selectedIndex >= 0 && selectedIndex < projects.Count)
+            {
+                action(projects[selectedIndex]);
+            }
+            return;
+        }
+
+        // Apply to all projects
+        foreach (var mp in projects)
+        {
+            action(mp);
+
+            // hack to prevent concurrency issues
+            Task.Delay(500).Wait();
+        }
+    }
+
     private void UpdateDisplay(IList<ManagedProject> managedProjects)
     {
         liveContext?.UpdateTarget(CreateInteractiveTable(managedProjects));
@@ -162,6 +195,7 @@ public class InteractiveService
         table.AddColumn(new TableColumn("[bold]#[/]").Centered());
         table.AddColumn(new TableColumn("[bold]Project[/]"));
         table.AddColumn(new TableColumn("[bold]Status[/]").Centered());
+        table.AddColumn(new TableColumn("[bold]Errors[/]").Centered());
         table.AddColumn(new TableColumn("[bold]Last Build[/]").Centered());
 
         table.Border(TableBorder.Rounded);
@@ -181,6 +215,7 @@ public class InteractiveService
                 $"{rowStyle}{i + 1}{endStyle}",
                 $"{rowStyle}{GetProjectName(mp)}{endStyle}",
                 $"{rowStyle}{GetAnimatedStatusMarkup(mp)}{endStyle}", // Use animated version
+                $"{rowStyle}{GetErrorCountMarkup(mp)}{endStyle}",
                 $"{rowStyle}{GetLastBuildMarkup(mp)}{endStyle}"
             );
         }
@@ -191,32 +226,48 @@ public class InteractiveService
         return table;
     }
 
-    private string GetProjectName(ManagedProject mp)
-    {
-        if (!mp.Enabled) return $"[dim]{mp.Name}[/]";
-        return mp.Name;
-    }
+    private string GetProjectName(ManagedProject mp) => mp.Name;
 
     private string GetAnimatedStatusMarkup(ManagedProject mp)
     {
-        if (!mp.Enabled) return "[dim]Disabled[/]";
-        
+        // stager in the frame for visual variety
+        int frameIndex = animationFrame + (mp.GetHashCode() % 10);
+
         if (mp.IsBuilding)
         {
-            var spinner = buildFrames[animationFrame % spinnerFrames.Length];
+            var spinner = buildFrames[frameIndex % spinnerFrames.Length];
             return $"[yellow]{spinner} Building[/]";
         }
-        
-        if (mp.IsRunning)
+        else if (mp.IsRunning)
         {
-            var dots = dotsAnimation[animationFrame % dotsAnimation.Length];
+            var dots = dotsAnimation[frameIndex % dotsAnimation.Length];
             return $"[green]{dots} Running[/]";
         }
-        
+        else if (buildService.IsProjectEnqueued(mp))
+        {
+            var dots = dotsAnimation[frameIndex % dotsAnimation.Length];
+            return mp.BuildFailure ? $"[red]{dots} Enqueued[/]" : $"[cyan]{dots} Enqueued[/]";
+        }
         if (mp.BuildFailure) return "[red]❌ Failed[/]";
         if (mp.LastBuildTime.HasValue) return "[green]✅ Ready[/]";
         return "[dim]Not Built[/]";
     }
+
+    private string GetErrorCountMarkup(ManagedProject mp)
+    {
+        var errorCount = mp.ErrorMessages?.Count() ?? 0;
+
+        if (errorCount == 0)
+        {
+            return mp.BuildFailure ? "[dim]0[/]" : "[dim]-[/]";
+        }
+
+        // Color coding based on error count
+        if (errorCount >= 10)
+            return $"[red bold]{errorCount}[/]";
+        return $"[red]{errorCount}[/]";
+    }
+
 
     private string GetLastBuildMarkup(ManagedProject mp)
     {
@@ -233,52 +284,27 @@ public class InteractiveService
 
     private void ShowProjectOutput(ManagedProject project)
     {
-        AnsiConsole.Clear();
-        
-        // Display the live output with formatting
-        var panel = new Panel(GetProjectOutputContent(project))
-            .Header($"[bold green]Live Output: {project.Name}[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(Color.Green);
-            
-        AnsiConsole.Write(panel);
-        AnsiConsole.WriteLine("\n[dim]Press any key to return...[/]");
-        Console.ReadKey(true);
-        AnsiConsole.Clear();
-    }
-
-    private string GetProjectOutputContent(ManagedProject project)
-    {
-        if (project.LiveOutput.Count == 0)
-            return "[dim]No output available yet.[/]";
-            
-        var recent = project.LiveOutput.TakeLast(20); // Show last 20 lines
-        return string.Join("\n", recent.Select(line => 
-            string.IsNullOrWhiteSpace(line) ? " " : line));
+        pauseDisplayUpdates = true;
+        Task.Delay(200).Wait();
+        outputService.PrintRunOutput(project);
+        pauseDisplayUpdates = false;
     }
 
     private void ShowBuildOutput(ManagedProject project)
     {
-        AnsiConsole.Clear();
-        
-        var panel = new Panel(GetBuildOutputContent(project))
-            .Header($"[bold cyan]Build Output: {project.Name}[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(project.BuildFailure ? Color.Red : Color.Cyan);
-            
-        AnsiConsole.Write(panel);
-        AnsiConsole.WriteLine("\n[dim]Press any key to return...[/]");
-        Console.ReadKey(true);
-        AnsiConsole.Clear();
+        pauseDisplayUpdates = true;
+        Task.Delay(200).Wait();
+        outputService.PrintBuildOutput(project);
+        pauseDisplayUpdates = false;
     }
 
     private string GetBuildOutputContent(ManagedProject project)
     {
-        if (string.IsNullOrEmpty(project.LastBuildOutput))
+        if (string.IsNullOrEmpty(project.BuildOutput))
             return "[dim]No build output available.[/]";
             
         // Truncate if too long and highlight errors
-        var lines = project.LastBuildOutput.Split('\n');
+        var lines = project.BuildOutput.Split('\n');
         if (lines.Length > 30)
         {
             var truncated = lines.TakeLast(30);

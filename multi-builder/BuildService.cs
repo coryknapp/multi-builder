@@ -83,10 +83,14 @@ public class BuildService
         }
         managedProject.BuildFailure = false;
         managedProject.RetryAttempts = 0;
-        managedProject.RetryEligible = false;
-        managedProject.LastBuildOutput = string.Empty;
+        managedProject.BuildOutput = null;
         managedProject.ErrorMessages = Array.Empty<string>();
         BuildQueue.Enqueue(managedProject);
+    }
+
+    public bool IsProjectEnqueued(ManagedProject project)
+    {
+        return BuildQueue.Contains(project);
     }
 
     private static bool IsContentiousResourceFailure(ManagedProject managedProject)
@@ -133,7 +137,7 @@ public class BuildService
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
         };
 
         var process = new Process { StartInfo = psi };
@@ -145,12 +149,12 @@ public class BuildService
 
         await process.WaitForExitAsync();
 
-        managedProject.LastBuildOutput = output + Environment.NewLine + error;
+        managedProject.BuildOutput = output + Environment.NewLine + error;
 
         if (OptionService.DumpBuildOutputToFile)
         {
             var logFile = Path.Combine(managedProject.WorkingDirectory, $"{managedProject.Name}_build.log");
-            await File.WriteAllTextAsync(logFile, managedProject.LastBuildOutput);
+            await File.WriteAllTextAsync(logFile, managedProject.BuildOutput);
             this.OutputFileWritten?.Invoke(this, new OuputFileEventArgs(logFile));
         }
 

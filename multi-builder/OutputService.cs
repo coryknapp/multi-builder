@@ -6,86 +6,43 @@ using System.Threading.Tasks;
 
 public class OutputService
 {
-    private TextService TextService { get; }
-
-    public OutputService(TextService textService)
+    public OutputService()
     {
-        TextService = textService;
     }
 
-    public void PrintStatus(IEnumerable<ManagedProject> managedProjects)
-    {
-        this.TextService.WriteHeaderLine("Current running processes:");
-        int index = 1;
-        foreach (var mp in managedProjects)
-        {
-            if (mp.IsBuilding)
-            {
-                TextService.WriteBuildingLine($"{index++}: {mp.Name} (Building)");
-            }
-            else if (mp.IsRunning)
-            {
-                TextService.WriteSuccessLine($"{index++}: {mp.Name} (Running)");
-            }
-            else if (mp.BuildFailure)
-            {
-                TextService.WriteErrorLine($"{index++}: {mp.Name} (Failed)");
-            }
-            else if (mp.LastBuildTime == null)
-            {
-                TextService.WriteInfoLine($"{index++}: {mp.Name} (never built)");
-            }
-            else
-            {
-                TextService.WriteInfoLine($"{index++}: {mp.Name} (built success at ${mp.LastBuildTime})");
-            }
-        }
-    }
-
-    public void PrintHelpMessage(List<Command> commands)
-    {
-        foreach (var cmd in commands)
-        {
-            TextService.WriteInfoLine($"{string.Join(", ", cmd.Invocations)}: {cmd.HelpString}");
-        }
-    }
 
     public void PrintBuildOutput(ManagedProject managedProject)
     {
-        TextService.WriteHeaderLine($"Last build output for {managedProject.Name}");
-        if (!string.IsNullOrEmpty(managedProject.LastBuildOutput))
+        Console.Clear();
+        foreach (var line in managedProject.BuildOutput.Split(new[] { Environment.NewLine }, StringSplitOptions.None))
         {
-            TextService.WriteInfoLine(managedProject.LastBuildOutput);
+            WriteBuildOutputLine(line);
         }
-        else
-        {
-            TextService.WriteInfoLine("No build output available.");
-        }
+        Console.WriteLine("----- End of Build Output. Press Enter to return. -----");
+        _ = Console.ReadLine();
+        Console.Clear();
     }
 
     public void PrintRunOutput(ManagedProject managedProject)
     {
-        if (managedProject.LiveOutput.Count > 0)
+        Console.Clear();
+        if(managedProject.LiveOutput == null)
         {
-            TextService.WriteHeaderLine($"Run output for {managedProject.Name}");
-            foreach (var line in managedProject.LiveOutput)
-            {
-                TextService.WriteInfoLine(line);
-            }
+            Console.WriteLine("No live output available.");
+            Console.WriteLine("----- Press Enter to return. -----");
+            _ = Console.ReadLine();
+            return;
         }
-        else
+        foreach (var line in managedProject.LiveOutput)
         {
-            TextService.WriteInfoLine("No output available yet.");
+            WriteBuildOutputLine(line);
         }
+        Console.WriteLine("----- End of Build Output. Press Enter to return. -----");
+        _ = Console.ReadLine();
+        Console.Clear();
     }
 
-    public void EnableLiveRunOutput(ManagedProject managedProject)
-    {
-        managedProject.PrintOutputInRealTime = true;
-    }
+    private void WriteBuildOutputLine(string line) => Console.WriteLine(line);
 
-    public void DisableLiveRunOutput(ManagedProject managedProject)
-    {
-        managedProject.PrintOutputInRealTime = false;
-    }
+    private void WriteRunOutputLine(string line) => Console.WriteLine(line);
 }

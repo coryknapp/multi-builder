@@ -3,33 +3,48 @@ using System.Diagnostics;
 
 public class ManagedProject
 {
-    public string Name { get; set; }
+    public ManagedProject(string name, string workingDirectory)
+    {
+        Name = name;
+        WorkingDirectory = workingDirectory;
+    }
 
-    public string WorkingDirectory { get; set; }
+    public string Name { get; }
 
-    public Process BuildProcess { get; set; }
+    public string WorkingDirectory { get; }
 
-    public Process RunProcess { get; set; }
+    public Process? BuildProcess { get; set; }
 
-    public bool Enabled { get; set; } = true;
+    public Process? RunProcess { get; set; }
 
-    public bool IsBuilding => BuildProcess != null && !BuildProcess.HasExited;
+    public bool IsBuilding => this.IsProcessRunning(this.BuildProcess);
 
-    public bool IsRunning => RunProcess != null && !RunProcess.HasExited;
+    public bool IsRunning => this.IsProcessRunning(this.RunProcess);
 
     public bool BuildFailure { get; set; }
 
-    public IEnumerable<string> ErrorMessages { get; set; }
+    public IEnumerable<string>? ErrorMessages { get; set; }
 
     public int RetryAttempts { get; set; } = 0;
 
-    public bool RetryEligible { get; set; }
-
-    public string LastBuildOutput { get; set; }
+    public string? BuildOutput { get; set; }
 
     public DateTime? LastBuildTime { get; set; }
 
-    public List<string> LiveOutput { get; set; } = new List<string>();
+    public List<string>? LiveOutput { get; set; }
 
-    public bool PrintOutputInRealTime { get; internal set; }
+    private bool IsProcessRunning(Process? process)
+    {
+        if (process == null) return false;
+
+        try
+        {
+            return !process.HasExited;
+        }
+        catch (InvalidOperationException)
+        {
+            // Process was never started or has been disposed
+            return false;
+        }
+    }
 }

@@ -16,8 +16,6 @@ public class OptionService
 
     public bool DumpBuildOutputToFile { get; set; } = false;
 
-    public bool OutputErrorsOnFailure { get; internal set; }
-
     public void ParseOptions(string[] args)
     {
         var directoriesOption = DirectoriesOption();

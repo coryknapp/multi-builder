@@ -30,6 +30,7 @@ public class RunService
 
         var process = new Process { StartInfo = psi };
         managedProject.RunProcess = process;
+        managedProject.LiveOutput = new List<string>();
 
         process.OutputDataReceived += (sender, args) =>
         {
