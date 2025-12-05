@@ -11,6 +11,7 @@ public class InteractiveService
     private readonly RunService runService;
     private readonly BuildRunService buildRunService;
     private readonly OutputService outputService;
+    private readonly KillService killService;
 
     private int selectedIndex = 0;
     private bool isRunning = false;
@@ -28,12 +29,14 @@ public class InteractiveService
         BuildService buildService,
         RunService runService,
         BuildRunService buildRunService,
-        OutputService outputService)
+        OutputService outputService,
+        KillService killService)
     {
         this.buildService = buildService;
         this.runService = runService;
         this.buildRunService = buildRunService;
         this.outputService = outputService;
+        this.killService = killService;
     }
 
     public async Task StartInteractiveMode(IList<ManagedProject> managedProjects, CancellationToken cancellationToken = default)
@@ -326,12 +329,7 @@ public class InteractiveService
         return line;
     }
 
-    private void StopProject(ManagedProject managedProject)
-    {
-        managedProject.RunProcess?.Kill();
-        managedProject.BuildProcess?.Kill();
-        managedProject.BuildFailure = false;
-    }
+    private void StopProject(ManagedProject managedProject) => killService.KillProject(managedProject);
 
     private void ShowHelpDialog()
     {

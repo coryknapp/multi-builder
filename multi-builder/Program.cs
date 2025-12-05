@@ -11,6 +11,7 @@ public class Program
     static BuildService BuildService;
     static OptionService OptionService;
     static InteractiveService InteractiveHotkeyService;
+    static KillService KillService;
 
     static public IList<ManagedProject> ManagedProjects;
     static private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
@@ -27,6 +28,7 @@ public class Program
         services.AddSingleton<BuildRunService>();
         services.AddSingleton<InteractiveService>();
         services.AddSingleton<OutputService>();
+        services.AddSingleton<KillService>();
 
         var serviceProvider = services.BuildServiceProvider();
         
@@ -35,6 +37,7 @@ public class Program
 
         BuildService = serviceProvider.GetRequiredService<BuildService>();
         InteractiveHotkeyService = serviceProvider.GetRequiredService<InteractiveService>();
+        KillService = serviceProvider.GetRequiredService<KillService>();
 
         AppDomain.CurrentDomain.ProcessExit += (s, e) => PrepareToExit();
         Console.CancelKeyPress += (s, e) =>
@@ -66,17 +69,7 @@ public class Program
 
         foreach (var mp in ManagedProjects)
         {
-            // Kill run processes
-            if (mp.RunProcess != null && !mp.RunProcess.HasExited)
-            {
-                killTasks.Add(Task.Run(() => KillProcessSafely(mp.RunProcess, $"Run process for {mp.Name}")));
-            }
-
-            // Kill build processes
-            if (mp.BuildProcess != null && !mp.BuildProcess.HasExited)
-            {
-                killTasks.Add(Task.Run(() => KillProcessSafely(mp.BuildProcess, $"Build process for {mp.Name}")));
-            }
+            KillService.KillProject(mp);
         }
 
         // Wait for all kill operations with timeout
@@ -87,56 +80,6 @@ public class Program
         catch (AggregateException ex)
         {
             AnsiConsole.MarkupLine($"[red]Some processes could not be killed cleanly: {ex.Message}[/]");
-        }
-    }
-
-    private static void KillProcessSafely(Process process, string description)
-    {
-        try
-        {
-            if (process == null || process.HasExited) return;
-
-            AnsiConsole.MarkupLine($"[yellow]Terminating {description}...[/]");
-
-            // Try graceful shutdown first (if the process supports it)
-            try
-            {
-                process.CloseMainWindow();
-                if (process.WaitForExit(2000)) // Wait 2 seconds for graceful exit
-                {
-                    AnsiConsole.MarkupLine($"[green]{description} exited gracefully[/]");
-                    return;
-                }
-            }
-            catch
-            {
-                // CloseMainWindow might fail, continue to Kill
-            }
-
-            // Force kill the entire process tree
-            process.Kill(true); // true = kill entire process tree
-
-            // Wait a bit to ensure it's dead
-            if (process.WaitForExit(3000))
-            {
-                AnsiConsole.MarkupLine($"[green]{description} terminated[/]");
-            }
-            else
-            {
-                AnsiConsole.MarkupLine($"[red]{description} did not respond to termination[/]");
-            }
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine($"[red]Error killing {description}: {ex.Message}[/]");
-        }
-        finally
-        {
-            try
-            {
-                process?.Dispose();
-            }
-            catch { /* Ignore disposal errors */ }
         }
     }
 
