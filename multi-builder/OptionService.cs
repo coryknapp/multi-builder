@@ -6,9 +6,11 @@ public class OptionService
 {
     public List<string> Directories { get; set; }
 
-    public int ConcurrentBuildProcesses { get; set; }
+    public int ConcurrentBuildProcesses { get; set; } = 2;
 
     public int MaxRetryAtempts { get; set; } = 4;
+
+    public int HideCursorSeconds { get; set; } = 1;
 
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
 
@@ -16,15 +18,18 @@ public class OptionService
 
     public bool DumpBuildOutputToFile { get; set; } = false;
 
+    private static string ProgramDescription = "Multi-builder tool to manage building and running multiple projects concurrently.";
+
     public void ParseOptions(string[] args)
     {
         var directoriesOption = DirectoriesOption();
         var concurrentBuildProcessesOption = ConcurrentBuildProcessesOption();
-
-        var rootCommand = new RootCommand("Multi-builder tool")
+        var hideCursorSecondsOption = HideCursorSecondsOption();
+        var rootCommand = new RootCommand(OptionService.ProgramDescription)
         {
             directoriesOption,
             concurrentBuildProcessesOption,
+            hideCursorSecondsOption,
         };
 
         rootCommand.SetAction(parseResult =>
@@ -71,6 +76,15 @@ public class OptionService
             Description = "Number of allowed concurrent build processes",
             Required = false,
             Aliases = { "-c" },
-            DefaultValueFactory = (_) => 4,
+            DefaultValueFactory = (_) => this.ConcurrentBuildProcesses,
+        };
+
+    private Option<int> HideCursorSecondsOption() =>
+        new("--hide-cursor")
+        {
+            Description = "Set the number of seconds before the cursor is hidden.  Set to zero to never hide.",
+            Required = false,
+            Aliases = { "-hr" },
+            DefaultValueFactory = (_) => this.HideCursorSeconds,
         };
 }

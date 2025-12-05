@@ -7,6 +7,7 @@ using Spectre.Console;
 
 public class InteractiveService
 {
+    private readonly OptionService optionService;
     private readonly BuildService buildService;
     private readonly RunService runService;
     private readonly BuildRunService buildRunService;
@@ -20,23 +21,25 @@ public class InteractiveService
     private int animationFrame = 0; // Add animation frame counter
 
     // Animation frames for different states
-    private readonly string[] spinnerFrames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
     private readonly string[] dotsAnimation = { "⠀", "⠁", "⠃", "⠇", "⠏", "⠟", "⠿", "⡿", "⣿", "⣾", "⣼", "⣸", "⢸", "⠸", "⠘", "⠈" };
     private readonly string[] buildFrames = { "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂" };
 
+    private DateTime cursorHideTime;
 
     public InteractiveService(
         BuildService buildService,
         RunService runService,
         BuildRunService buildRunService,
         OutputService outputService,
-        KillService killService)
+        KillService killService,
+        OptionService optionService)
     {
         this.buildService = buildService;
         this.runService = runService;
         this.buildRunService = buildRunService;
         this.outputService = outputService;
         this.killService = killService;
+        this.optionService = optionService;
     }
 
     public async Task StartInteractiveMode(IList<ManagedProject> managedProjects, CancellationToken cancellationToken = default)
@@ -80,6 +83,7 @@ public class InteractiveService
 
     private void HandleHotkeyInput(IList<ManagedProject> managedProjects, CancellationToken cancellationToken)
     {
+        this.UpdateCursorHideTime();
         while (isRunning && !cancellationToken.IsCancellationRequested)
         {
             try
@@ -92,6 +96,13 @@ public class InteractiveService
 
                 var key = Console.ReadKey(true);
                 bool applyToAll = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+
+                // if the cursor is hidden, show it, but suppress the key action
+                if (!ShowCursor())
+                {
+                    UpdateCursorHideTime();
+                    continue;
+                }
 
                 switch (key.Key)
                 {
@@ -151,11 +162,9 @@ public class InteractiveService
                     case ConsoleKey.Escape:
                         isRunning = false;
                         return;
-
-                    case ConsoleKey.H: // Help
-                        ShowHelpDialog();
-                        break;
                 }
+
+                this.UpdateCursorHideTime();
             }
             catch (OperationCanceledException)
             {
@@ -209,7 +218,7 @@ public class InteractiveService
         for (int i = 0; i < managedProjects.Count; i++)
         {
             var mp = managedProjects[i];
-            var isSelected = i == selectedIndex;
+            var isSelected = this.ShowCursor() && (i == selectedIndex);
 
             var rowStyle = isSelected ? "[on blue]" : "";
             var endStyle = isSelected ? "[/]" : "";
@@ -238,7 +247,7 @@ public class InteractiveService
 
         if (mp.IsBuilding)
         {
-            var spinner = buildFrames[frameIndex % spinnerFrames.Length];
+            var spinner = buildFrames[frameIndex % buildFrames.Length];
             return $"[yellow]{spinner} Building[/]";
         }
         else if (mp.IsRunning)
@@ -301,65 +310,24 @@ public class InteractiveService
         pauseDisplayUpdates = false;
     }
 
-    private string GetBuildOutputContent(ManagedProject project)
-    {
-        if (string.IsNullOrEmpty(project.BuildOutput))
-            return "[dim]No build output available.[/]";
-            
-        // Truncate if too long and highlight errors
-        var lines = project.BuildOutput.Split('\n');
-        if (lines.Length > 30)
-        {
-            var truncated = lines.TakeLast(30);
-            return "[dim]... (truncated) ...[/]\n" + 
-                   string.Join("\n", truncated.Select(FormatBuildLine));
-        }
-        
-        return string.Join("\n", lines.Select(FormatBuildLine));
-    }
-
-    private string FormatBuildLine(string line)
-    {
-        if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
-            return $"[red]{line}[/]";
-        if (line.Contains("warning", StringComparison.OrdinalIgnoreCase))
-            return $"[yellow]{line}[/]";
-        if (line.Contains("succeeded", StringComparison.OrdinalIgnoreCase))
-            return $"[green]{line}[/]";
-        return line;
-    }
-
     private void StopProject(ManagedProject managedProject) => killService.KillProject(managedProject);
-
-    private void ShowHelpDialog()
-    {
-        AnsiConsole.Clear();
-
-        var helpTable = new Table();
-        helpTable.AddColumn("[bold]Hotkey[/]");
-        helpTable.AddColumn("[bold]Action[/]");
-        helpTable.Border(TableBorder.Rounded);
-        helpTable.Title("[bold cyan]Hotkey Help[/]");
-
-        helpTable.AddRow("[bold blue]↑/↓[/]", "Navigate up/down through projects");
-        helpTable.AddRow("[bold green]B[/]", "Build selected project");
-        helpTable.AddRow("[bold green]R[/]", "Run selected project");
-        helpTable.AddRow("[bold green]P[/]", "Build and Run selected project");
-        helpTable.AddRow("[bold yellow]O[/]", "Show live output of selected project");
-        helpTable.AddRow("[bold yellow]L[/]", "Show last build output of selected project");
-        helpTable.AddRow("[bold red]K[/]", "Kill/Stop selected project");
-        helpTable.AddRow("[bold magenta]T[/]", "Toggle live output for selected project");
-        helpTable.AddRow("[bold cyan]H[/]", "Show this help");
-        helpTable.AddRow("[bold red]Q/Esc[/]", "Quit interactive mode");
-
-        AnsiConsole.Write(helpTable);
-        AnsiConsole.WriteLine("\n[dim]Press any key to return...[/]");
-        Console.ReadKey(true);
-        AnsiConsole.Clear();
-    }
 
     public void Stop()
     {
         isRunning = false;
+    }
+
+    private void UpdateCursorHideTime()
+    {
+        this.cursorHideTime = DateTime.Now.AddSeconds(this.optionService.HideCursorSeconds);
+    }
+
+    private bool ShowCursor()
+    {
+        if( this.optionService.HideCursorSeconds == 0)
+        {
+            return true;
+        }
+        return (DateTime.Now < cursorHideTime);
     }
 }
