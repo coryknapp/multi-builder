@@ -10,7 +10,7 @@ public class OptionService
 
     public int MaxRetryAtempts { get; set; } = 4;
 
-    public int HideCursorSeconds { get; set; } = 1;
+    public int HideCursorSeconds { get; set; } = 5;
 
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
 
@@ -82,7 +82,7 @@ public class OptionService
     private Option<int> HideCursorSecondsOption() =>
         new("--hide-cursor")
         {
-            Description = "Set the number of seconds before the cursor is hidden.  Set to zero to never hide.",
+            Description = "Set time before the cursor is hidden, in seconds.  Set to '0' to never hide.",
             Required = false,
             Aliases = { "-hr" },
             DefaultValueFactory = (_) => this.HideCursorSeconds,
