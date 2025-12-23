@@ -10,7 +10,7 @@ public class OptionService
 
     public int MaxRetryAtempts { get; set; } = 4;
 
-    public int HideCursorSeconds { get; set; } = 5;
+    public int HideCursorSeconds { get; set; } = 60 * 5;
 
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
 
