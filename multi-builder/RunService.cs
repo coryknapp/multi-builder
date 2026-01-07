@@ -8,14 +8,17 @@ using System.Threading.Tasks;
 public class RunService
 {
     private readonly OptionService OptionService;
-    public RunService(OptionService optionService)
+    private readonly KillService KillService;
+
+    public RunService(OptionService optionService, KillService killService)
     {
-        OptionService = optionService;
+        this.OptionService = optionService;
+        this.KillService = killService;
     }
 
     public void RunProject(ManagedProject managedProject)
     {
-        managedProject.RunProcess?.Kill(true);
+        this.KillService.KillProject(managedProject);
 
         var psi = new ProcessStartInfo
         {

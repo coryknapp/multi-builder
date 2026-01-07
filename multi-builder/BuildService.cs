@@ -179,7 +179,7 @@ public class BuildService
         {
             managedProject.BuildFailure = false;
             managedProject.LastBuildTime = DateTime.Now;
-            managedProject.GitBranch = await GitService.GetActiveBranchAsync(managedProject?.WorkingDirectory);
+            managedProject.GitBranch = await this.GitService.GetActiveBranchDisplayNameAsync(managedProject?.WorkingDirectory);
             this.BuildComplete?.Invoke(this, new BuildEventArgs(managedProject));
         }
     }

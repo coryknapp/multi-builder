@@ -7,7 +7,21 @@ using System.Threading.Tasks;
 
 public class GitService
 {
-    public static async Task<string?> GetActiveBranchAsync(string directoryPath)
+    private readonly OptionService OptionService;
+
+    public GitService(OptionService optionService)
+    {
+        this.OptionService = optionService;
+    }
+
+    public async Task<string?> GetActiveBranchDisplayNameAsync(string directoryPath)
+    {
+        var branchName = await this.GetActiveBranchNameAsync(directoryPath);
+
+        return branchName != null ? this.TruncateBranchName(branchName) : null;
+    }
+
+    public async Task<string?> GetActiveBranchNameAsync(string directoryPath)
     {
         if (string.IsNullOrEmpty(directoryPath) || !Directory.Exists(directoryPath))
         {
@@ -47,5 +61,14 @@ public class GitService
             // Git command failed or git is not available
             return null;
         }
+    }
+
+    private string TruncateBranchName(string branchName)
+    {
+        if (branchName.Length <= this.OptionService.MaxGitBranchLength)
+        {
+            return branchName;
+        }
+        return branchName.Substring(0, this.OptionService.MaxGitBranchLength - 3) + "...";
     }
 }
