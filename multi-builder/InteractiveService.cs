@@ -98,10 +98,13 @@ public class InteractiveService
                 }
 
                 var key = Console.ReadKey(true);
-                bool applyToAll = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+                bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+                bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+                
+                ExecutionMode mode = GetExecutionMode(hasShift, hasAlt);
 
                 // if the cursor is hidden, show it, but suppress the key action
-                if (!ShowCursor() && !applyToAll)
+                if (!ShowCursor() && mode == ExecutionMode.SelectedOnly)
                 {
                     UpdateCursorHideTime();
                     continue;
@@ -119,43 +122,43 @@ public class InteractiveService
                         UpdateDisplay(managedProjects);
                         break;
 
-                    case ConsoleKey.B: // Build (Shift+B builds all)
-                        ExecuteForProjects(applyToAll, managedProjects, mp =>
+                    case ConsoleKey.B: // Build
+                        ExecuteForProjects(mode, managedProjects, mp =>
                         {
                             buildService.EnqueueBuild(mp);
                         });
                         break;
 
-                    case ConsoleKey.R: // Run (Shift+R runs all)
-                        ExecuteForProjects(applyToAll, managedProjects, mp =>
+                    case ConsoleKey.R: // Run
+                        ExecuteForProjects(mode, managedProjects, mp =>
                         {
                             runService.RunProject(mp);
                         });
                         break;
 
-                    case ConsoleKey.P: // Build and Run (Shift+P for all)
-                        ExecuteForProjects(applyToAll, managedProjects, mp =>
+                    case ConsoleKey.P: // Build then Run
+                        ExecuteForProjects(mode, managedProjects, mp =>
                         {
                             _ = Task.Run(() => buildRunService.BuildAndRunProject(mp));
                         });
                         break;
 
-                    case ConsoleKey.O: // Show Output (Shift+O shows output for all sequentially)
-                        ExecuteForProjects(applyToAll, managedProjects, mp =>
+                    case ConsoleKey.O: // Show Output
+                        ExecuteForProjects(mode, managedProjects, mp =>
                         {
                             ShowProjectOutput(mp);
                         });
                         break;
 
-                    case ConsoleKey.L: // Show Last build output (Shift+L for all sequentially)
-                        ExecuteForProjects(applyToAll, managedProjects, mp =>
+                    case ConsoleKey.L: // Show Last build output
+                        ExecuteForProjects(mode, managedProjects, mp =>
                         {
                             ShowBuildOutput(mp);
                         });
                         break;
 
-                    case ConsoleKey.K: // Kill/Stop (Shift+K stops all)
-                        ExecuteForProjects(applyToAll, managedProjects, mp =>
+                    case ConsoleKey.K: // Kill/Stop
+                        ExecuteForProjects(mode, managedProjects, mp =>
                         {
                             StopProject(mp);
                         }, 0);
@@ -176,25 +179,57 @@ public class InteractiveService
         }
     }
 
-    private void ExecuteForProjects(bool all, IList<ManagedProject> projects, Action<ManagedProject> action, int delay = 300)
+    private enum ExecutionMode
     {
-        if (!all)
-        {
-            // Apply to selected project only
-            if (selectedIndex >= 0 && selectedIndex < projects.Count)
-            {
-                action(projects[selectedIndex]);
-            }
-            return;
-        }
+        SelectedOnly,
+        AllProjects,
+        AllExceptSelected
+    }
 
-        // Apply to all projects
-        foreach (var mp in projects)
-        {
-            action(mp);
+    private ExecutionMode GetExecutionMode(bool hasShift, bool hasAlt)
+    {
+        if (hasShift && hasAlt)
+            return ExecutionMode.AllExceptSelected;
+        else if (hasShift)
+            return ExecutionMode.AllProjects;
+        else
+            return ExecutionMode.SelectedOnly;
+    }
 
-            // hack to prevent concurrency issues
-            Task.Delay(delay).Wait();
+    private void ExecuteForProjects(ExecutionMode mode, IList<ManagedProject> projects, Action<ManagedProject> action, int delay = 300)
+    {
+        switch (mode)
+        {
+            case ExecutionMode.SelectedOnly:
+                // Apply to selected project only
+                if (selectedIndex >= 0 && selectedIndex < projects.Count)
+                {
+                    action(projects[selectedIndex]);
+                }
+                break;
+
+            case ExecutionMode.AllProjects:
+                // Apply to all projects
+                foreach (var mp in projects)
+                {
+                    action(mp);
+                    // hack to prevent concurrency issues
+                    Task.Delay(delay).Wait();
+                }
+                break;
+
+            case ExecutionMode.AllExceptSelected:
+                // Apply to all projects except the selected one
+                for (int i = 0; i < projects.Count; i++)
+                {
+                    if (i != selectedIndex)
+                    {
+                        action(projects[i]);
+                        // hack to prevent concurrency issues
+                        Task.Delay(delay).Wait();
+                    }
+                }
+                break;
         }
     }
 
@@ -238,7 +273,7 @@ public class InteractiveService
         }
 
         // Add hotkey instructions
-        table.Caption("[dim]↑↓: Select | [bold]B[/]: Build | [bold]R[/]: Run | [bold]P[/]: Build+Run | [bold]O[/]: Output | [bold]L[/]: Build Log | [bold]K[/]: Kill | [bold]Q[/]: Quit[/]");
+        table.Caption("[dim]↑↓: Select | [bold]B[/]: Build | [bold]R[/]: Run | [bold]P[/]: Build+Run | [bold]O[/]: Output | [bold]L[/]: Build Log | [bold]K[/]: Kill |  [bold]Shift-(Key)[/]: Perform action on all | [bold]Alt-Shift-(Key)[/]: Perform action on all, other then selected. | [bold]Q[/]: Quit[/]");
 
         return table;
     }
