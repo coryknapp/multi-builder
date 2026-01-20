@@ -2,7 +2,7 @@
   "profiles": {
     "multi-builder": {
       "commandName": "Project",
-      "commandLineArgs": "-d \"C:\\Users\\cknapp\\Code\\mms-cms-meddent\\components\\CEF.OP.MedDent.Core\\Services\\WebAggregator\\SecureMessageProxyCoreService\" \"C:\\Users\\cknapp\\Code\\mms-cms-meddent\\components\\CEF.OP.MedDent.Core\\Services\\SharePoint\\SharePoint.API\""
+      "commandLineArgs": ""
     }
   }
 }

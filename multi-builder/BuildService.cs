@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 public class BuildService
 {
     private readonly OptionService OptionService;
+    private readonly GitService GitService;
 
     private Queue<ManagedProject> BuildQueue = new Queue<ManagedProject>();
     private readonly SemaphoreSlim BuildQueueSemaphore;
@@ -15,9 +16,10 @@ public class BuildService
     public event EventHandler BuildRetried;
     public event EventHandler OutputFileWritten;
 
-    public BuildService(OptionService optionService)
+    public BuildService(OptionService optionService, GitService gitService)
     {
-        OptionService = optionService;
+        this.OptionService = optionService;
+        this.GitService = gitService;
         BuildQueueSemaphore = new SemaphoreSlim(OptionService.ConcurrentBuildProcesses);
     }
 
@@ -177,6 +179,7 @@ public class BuildService
         {
             managedProject.BuildFailure = false;
             managedProject.LastBuildTime = DateTime.Now;
+            managedProject.GitBranch = await this.GitService.GetActiveBranchDisplayNameAsync(managedProject?.WorkingDirectory);
             this.BuildComplete?.Invoke(this, new BuildEventArgs(managedProject));
         }
     }

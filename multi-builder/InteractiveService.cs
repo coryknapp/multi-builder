@@ -13,6 +13,7 @@ public class InteractiveService
     private readonly BuildRunService buildRunService;
     private readonly OutputService outputService;
     private readonly KillService killService;
+    private readonly GitService gitService;
 
     private int selectedIndex = 0;
     private bool isRunning = false;
@@ -32,7 +33,8 @@ public class InteractiveService
         BuildRunService buildRunService,
         OutputService outputService,
         KillService killService,
-        OptionService optionService)
+        OptionService optionService,
+        GitService gitService)
     {
         this.buildService = buildService;
         this.runService = runService;
@@ -40,6 +42,7 @@ public class InteractiveService
         this.outputService = outputService;
         this.killService = killService;
         this.optionService = optionService;
+        this.gitService = gitService;
     }
 
     public async Task StartInteractiveMode(IList<ManagedProject> managedProjects, CancellationToken cancellationToken = default)
@@ -98,7 +101,7 @@ public class InteractiveService
                 bool applyToAll = (key.Modifiers & ConsoleModifiers.Shift) != 0;
 
                 // if the cursor is hidden, show it, but suppress the key action
-                if (!ShowCursor())
+                if (!ShowCursor() && !applyToAll)
                 {
                     UpdateCursorHideTime();
                     continue;
@@ -155,7 +158,7 @@ public class InteractiveService
                         ExecuteForProjects(applyToAll, managedProjects, mp =>
                         {
                             StopProject(mp);
-                        });
+                        }, 0);
                         break;
 
                     case ConsoleKey.Q: // Quit
@@ -173,7 +176,7 @@ public class InteractiveService
         }
     }
 
-    private void ExecuteForProjects(bool all, IList<ManagedProject> projects, Action<ManagedProject> action)
+    private void ExecuteForProjects(bool all, IList<ManagedProject> projects, Action<ManagedProject> action, int delay = 300)
     {
         if (!all)
         {
@@ -191,7 +194,7 @@ public class InteractiveService
             action(mp);
 
             // hack to prevent concurrency issues
-            Task.Delay(500).Wait();
+            Task.Delay(delay).Wait();
         }
     }
 
@@ -209,6 +212,7 @@ public class InteractiveService
         table.AddColumn(new TableColumn("[bold]Status[/]").Centered());
         table.AddColumn(new TableColumn("[bold]Errors[/]").Centered());
         table.AddColumn(new TableColumn("[bold]Last Build[/]").Centered());
+        table.AddColumn(new TableColumn("[bold]Git Branch[/]").Centered());
 
         table.Border(TableBorder.Rounded);
         table.BorderColor(Color.Grey);
@@ -228,7 +232,8 @@ public class InteractiveService
                 $"{rowStyle}{GetProjectName(mp)}{endStyle}",
                 $"{rowStyle}{GetAnimatedStatusMarkup(mp)}{endStyle}", // Use animated version
                 $"{rowStyle}{GetErrorCountMarkup(mp)}{endStyle}",
-                $"{rowStyle}{GetLastBuildMarkup(mp)}{endStyle}"
+                $"{rowStyle}{GetLastBuildMarkup(mp)}{endStyle}",
+                $"{rowStyle}{GetGitBranchMarkup(mp)}{endStyle}"
             );
         }
 
@@ -292,6 +297,15 @@ public class InteractiveService
             return $"[orange1]{(int)timeSpan.TotalHours}h ago[/]";
         }
         return "[dim]Never[/]";
+    }
+
+    private string GetGitBranchMarkup(ManagedProject mp)
+    {
+        if (mp.GitBranch == null)
+        {
+            return "[dim]-[/]";
+        }
+        return $"[cyan]{mp.GitBranch}[/]";
     }
 
     private void ShowProjectOutput(ManagedProject project)

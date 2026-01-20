@@ -29,6 +29,7 @@ public class Program
         services.AddSingleton<InteractiveService>();
         services.AddSingleton<OutputService>();
         services.AddSingleton<KillService>();
+        services.AddSingleton<GitService>();
 
         var serviceProvider = services.BuildServiceProvider();
         

@@ -1,5 +1,3 @@
-
-using Microsoft.Extensions.DependencyInjection;
 using System.CommandLine;
 
 public class OptionService
@@ -10,13 +8,15 @@ public class OptionService
 
     public int MaxRetryAtempts { get; set; } = 4;
 
-    public int HideCursorSeconds { get; set; } = 5;
+    public int HideCursorSeconds { get; set; } = 60 * 5;
 
     public string BuildCommand { get; set; } = "dotnet build -c Debug";
 
     public string RunCommand { get; set; } = "dotnet run --no-build --no-restore";
 
     public bool DumpBuildOutputToFile { get; set; } = false;
+
+    public int MaxGitBranchLength { get; set; } = 32;
 
     private static string ProgramDescription = "Multi-builder tool to manage building and running multiple projects concurrently.";
 
@@ -25,17 +25,21 @@ public class OptionService
         var directoriesOption = DirectoriesOption();
         var concurrentBuildProcessesOption = ConcurrentBuildProcessesOption();
         var hideCursorSecondsOption = HideCursorSecondsOption();
+        var maxGitBranchLengthOption = MaxGitBranchLengthOption();
         var rootCommand = new RootCommand(OptionService.ProgramDescription)
         {
             directoriesOption,
             concurrentBuildProcessesOption,
             hideCursorSecondsOption,
+            maxGitBranchLengthOption,
         };
 
         rootCommand.SetAction(parseResult =>
         {
-            Directories = parseResult.GetValue(directoriesOption);
-            ConcurrentBuildProcesses = parseResult.GetValue(concurrentBuildProcessesOption);
+            this.Directories = parseResult.GetValue(directoriesOption);
+            this.ConcurrentBuildProcesses = parseResult.GetValue(concurrentBuildProcessesOption);
+            this.HideCursorSeconds = parseResult.GetValue(hideCursorSecondsOption);
+            this.MaxGitBranchLength = parseResult.GetValue(maxGitBranchLengthOption);
         });
 
         rootCommand.Parse(args).Invoke();
@@ -86,5 +90,13 @@ public class OptionService
             Required = false,
             Aliases = { "-hr" },
             DefaultValueFactory = (_) => this.HideCursorSeconds,
+        };
+
+    private Option<int> MaxGitBranchLengthOption() =>
+        new("--git-branch-length")
+        {
+            Description = "Set the maximum number of characters to be displayed for the git branch",
+            Required = false,
+            DefaultValueFactory = (_) => this.MaxGitBranchLength,
         };
 }
