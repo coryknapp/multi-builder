@@ -71,7 +71,7 @@ public class Program
 
         foreach (var mp in ManagedProjects)
         {
-            KillService.KillProject(mp);
+            KillService.KillProject(mp, true);
         }
 
         // Wait for all kill operations with timeout

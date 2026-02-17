@@ -8,19 +8,20 @@ using System.Threading.Tasks;
 
 public class KillService
 {
-    public void KillProject(ManagedProject managedProject)
+    public void KillProject(ManagedProject managedProject, bool verbose = false)
     {
-        this.KillProcessSafely(managedProject.BuildProcess, $"{managedProject.Name} build process");
-        this.KillProcessSafely(managedProject.RunProcess, $"{managedProject.Name} run process");
+        this.KillProcessSafely(managedProject.BuildProcess, $"{managedProject.Name} build process", verbose);
+        this.KillProcessSafely(managedProject.RunProcess, $"{managedProject.Name} run process", verbose);
     }
 
-    private void KillProcessSafely(Process? process, string description)
+    private void KillProcessSafely(Process? process, string description, bool verbose = false)
     {
         try
         {
             if (process == null || process.HasExited) return;
 
-            AnsiConsole.MarkupLine($"[yellow]Terminating {description}...[/]");
+            if (verbose)
+                AnsiConsole.MarkupLine($"[yellow]Terminating {description}...[/]");
 
             // Try graceful shutdown first (if the process supports it)
             try
@@ -28,7 +29,8 @@ public class KillService
                 process.CloseMainWindow();
                 if (process.WaitForExit(2000)) // Wait 2 seconds for graceful exit
                 {
-                    AnsiConsole.MarkupLine($"[green]{description} exited gracefully[/]");
+                    if (verbose)
+                        AnsiConsole.MarkupLine($"[green]{description} exited gracefully[/]");
                     return;
                 }
             }
@@ -43,16 +45,19 @@ public class KillService
             // Wait a bit to ensure it's dead
             if (process.WaitForExit(3000))
             {
-                AnsiConsole.MarkupLine($"[green]{description} terminated[/]");
+                if (verbose)
+                    AnsiConsole.MarkupLine($"[green]{description} terminated[/]");
             }
             else
             {
-                AnsiConsole.MarkupLine($"[red]{description} did not respond to termination[/]");
+                if (verbose)
+                    AnsiConsole.MarkupLine($"[red]{description} did not respond to termination[/]");
             }
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Error killing {description}: {ex.Message}[/]");
+            if (verbose)
+                AnsiConsole.MarkupLine($"[red]Error killing {description}: {ex.Message}[/]");
         }
         finally
         {
