@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Spectre.Console;
 
-public class InteractiveService
+public class InteractiveService : IFullScreenView
 {
     private readonly OptionService optionService;
     private readonly BuildService buildService;
@@ -14,18 +14,20 @@ public class InteractiveService
     private readonly OutputService outputService;
     private readonly KillService killService;
     private readonly GitService gitService;
+    private readonly FullScreenViewService fullScreenViewService;
 
+    private IList<ManagedProject> managedProjects = [];
     private int selectedIndex = 0;
-    private bool isRunning = false;
-    private bool pauseDisplayUpdates = false;
-    private LiveDisplayContext liveContext;
-    private int animationFrame = 0; // Add animation frame counter
+    private LiveDisplayContext? liveContext;
+    private int animationFrame = 0;
 
     // Animation frames for different states
     private readonly string[] dotsAnimation = { "⠀", "⠁", "⠃", "⠇", "⠏", "⠟", "⠿", "⡿", "⣿", "⣾", "⣼", "⣸", "⢸", "⠸", "⠘", "⠈" };
     private readonly string[] buildFrames = { "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂" };
 
     private DateTime cursorHideTime;
+
+    public TimeSpan RefreshInterval => TimeSpan.FromMilliseconds(200);
 
     public InteractiveService(
         BuildService buildService,
@@ -34,7 +36,8 @@ public class InteractiveService
         OutputService outputService,
         KillService killService,
         OptionService optionService,
-        GitService gitService)
+        GitService gitService,
+        FullScreenViewService fullScreenViewService)
     {
         this.buildService = buildService;
         this.runService = runService;
@@ -43,148 +46,103 @@ public class InteractiveService
         this.killService = killService;
         this.optionService = optionService;
         this.gitService = gitService;
+        this.fullScreenViewService = fullScreenViewService;
     }
 
-    public async Task StartInteractiveMode(IList<ManagedProject> managedProjects, CancellationToken cancellationToken = default)
+    public async Task StartInteractiveMode(IList<ManagedProject> projects, CancellationToken cancellationToken = default)
     {
-        isRunning = true;
-        pauseDisplayUpdates = false;
+        this.managedProjects = projects;
+        this.selectedIndex = 0;
 
-        selectedIndex = 0;
-
-        await AnsiConsole.Live(CreateInteractiveTable(managedProjects))
+        await AnsiConsole.Live(CreateInteractiveTable())
             .AutoClear(false)
             .StartAsync(async ctx =>
             {
                 liveContext = ctx;
-
-                var inputTask = Task.Run(() => HandleHotkeyInput(managedProjects, cancellationToken));
-                var updateTask = Task.Run(async () =>
-                {
-                    while (isRunning && !cancellationToken.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            if (!pauseDisplayUpdates)
-                            {
-                                animationFrame++; // Increment animation frame
-                                UpdateDisplay(managedProjects);
-                            }
-                            await Task.Delay(200, cancellationToken); // Faster updates for animation (200ms instead of 1000ms)
-                        }catch(Exception)
-                        {
-                            // for breakpoints
-                            return;
-                        }
-                    }
-                });
-
-                await Task.WhenAny(inputTask, updateTask);
-                isRunning = false;
+                await fullScreenViewService.ShowViewAsync(this, cancellationToken);
             });
     }
 
-    private void HandleHotkeyInput(IList<ManagedProject> managedProjects, CancellationToken cancellationToken)
+    public void OnActivated()
     {
-        this.UpdateCursorHideTime();
-        while (isRunning && !cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                if (!Console.KeyAvailable)
-                {
-                    Thread.Sleep(50);
-                    continue;
-                }
-
-                var key = Console.ReadKey(true);
-                bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-                bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
-                
-                ExecutionMode mode = GetExecutionMode(hasShift, hasAlt);
-
-                // if the cursor is hidden, show it, but suppress the key action
-                if (!ShowCursor() && mode == ExecutionMode.SelectedOnly)
-                {
-                    UpdateCursorHideTime();
-                    continue;
-                }
-
-                switch (key.Key)
-                {
-                    case ConsoleKey.UpArrow:
-                        selectedIndex = Math.Max(0, selectedIndex - 1);
-                        UpdateDisplay(managedProjects);
-                        break;
-
-                    case ConsoleKey.DownArrow:
-                        selectedIndex = Math.Min(managedProjects.Count - 1, selectedIndex + 1);
-                        UpdateDisplay(managedProjects);
-                        break;
-
-                    case ConsoleKey.B: // Build
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            buildService.EnqueueBuild(mp);
-                        });
-                        break;
-
-                    case ConsoleKey.R: // Run
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            runService.RunProject(mp);
-                        });
-                        break;
-
-                    case ConsoleKey.P: // Build then Run
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            _ = Task.Run(() => buildRunService.BuildAndRunProject(mp));
-                        });
-                        break;
-
-                    case ConsoleKey.E: // Show Errors
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            ShowBuildErrors(mp);
-                        });
-                        break;
-
-                    case ConsoleKey.O: // Show Output
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            ShowProjectOutput(mp);
-                        });
-                        break;
-
-                    case ConsoleKey.L: // Show Last build output
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            ShowBuildOutput(mp);
-                        });
-                        break;
-
-                    case ConsoleKey.K: // Kill/Stop
-                        ExecuteForProjects(mode, managedProjects, mp =>
-                        {
-                            StopProject(mp);
-                        }, 0);
-                        break;
-
-                    case ConsoleKey.Q: // Quit
-                    case ConsoleKey.Escape:
-                        isRunning = false;
-                        return;
-                }
-
-                this.UpdateCursorHideTime();
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
+        UpdateCursorHideTime();
     }
+
+    public void OnDeactivated()
+    {
+        // Cleanup if needed
+    }
+
+    public void Render()
+    {
+        animationFrame++;
+        liveContext?.UpdateTarget(CreateInteractiveTable());
+    }
+
+    public bool HandleKey(ConsoleKeyInfo keyInfo)
+    {
+        bool hasShift = (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0;
+        bool hasAlt = (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0;
+
+        ExecutionMode mode = GetExecutionMode(hasShift, hasAlt);
+
+        // If the cursor is hidden, show it, but suppress the key action
+        if (!ShowCursor() && mode == ExecutionMode.SelectedOnly)
+        {
+            UpdateCursorHideTime();
+            return true; // Continue running
+        }
+
+        switch (keyInfo.Key)
+        {
+            case ConsoleKey.UpArrow:
+                selectedIndex = Math.Max(0, selectedIndex - 1);
+                Render();
+                break;
+
+            case ConsoleKey.DownArrow:
+                selectedIndex = Math.Min(managedProjects.Count - 1, selectedIndex + 1);
+                Render();
+                break;
+
+            case ConsoleKey.B: // Build
+                ExecuteForProjects(mode, mp => buildService.EnqueueBuild(mp));
+                break;
+
+            case ConsoleKey.R: // Run
+                ExecuteForProjects(mode, mp => runService.RunProject(mp));
+                break;
+
+            case ConsoleKey.P: // Build then Run
+                ExecuteForProjects(mode, mp => _ = Task.Run(() => buildRunService.BuildAndRunProject(mp)));
+                break;
+
+            case ConsoleKey.E: // Show Errors
+                ExecuteForProjects(mode, mp => ShowBuildErrors(mp));
+                break;
+
+            case ConsoleKey.O: // Show Output
+                ExecuteForProjects(mode, mp => ShowProjectOutput(mp));
+                break;
+
+            case ConsoleKey.L: // Show Last build output
+                ExecuteForProjects(mode, mp => ShowBuildOutput(mp));
+                break;
+
+            case ConsoleKey.K: // Kill/Stop
+                ExecuteForProjects(mode, mp => StopProject(mp), delay: 0);
+                break;
+
+            case ConsoleKey.Q: // Quit
+            case ConsoleKey.Escape:
+                return false; // Stop running
+        }
+
+        UpdateCursorHideTime();
+        return true; // Continue running
+    }
+
+    public void Stop() => fullScreenViewService.Stop();
 
     private enum ExecutionMode
     {
@@ -203,49 +161,39 @@ public class InteractiveService
             return ExecutionMode.SelectedOnly;
     }
 
-    private void ExecuteForProjects(ExecutionMode mode, IList<ManagedProject> projects, Action<ManagedProject> action, int delay = 300)
+    private void ExecuteForProjects(ExecutionMode mode, Action<ManagedProject> action, int delay = 300)
     {
         switch (mode)
         {
             case ExecutionMode.SelectedOnly:
-                // Apply to selected project only
-                if (selectedIndex >= 0 && selectedIndex < projects.Count)
+                if (selectedIndex >= 0 && selectedIndex < managedProjects.Count)
                 {
-                    action(projects[selectedIndex]);
+                    action(managedProjects[selectedIndex]);
                 }
                 break;
 
             case ExecutionMode.AllProjects:
-                // Apply to all projects
-                foreach (var mp in projects)
+                foreach (var mp in managedProjects)
                 {
                     action(mp);
-                    // hack to prevent concurrency issues
-                    Task.Delay(delay).Wait();
+                    if (delay > 0) Task.Delay(delay).Wait();
                 }
                 break;
 
             case ExecutionMode.AllExceptSelected:
-                // Apply to all projects except the selected one
-                for (int i = 0; i < projects.Count; i++)
+                for (int i = 0; i < managedProjects.Count; i++)
                 {
                     if (i != selectedIndex)
                     {
-                        action(projects[i]);
-                        // hack to prevent concurrency issues
-                        Task.Delay(delay).Wait();
+                        action(managedProjects[i]);
+                        if (delay > 0) Task.Delay(delay).Wait();
                     }
                 }
                 break;
         }
     }
 
-    private void UpdateDisplay(IList<ManagedProject> managedProjects)
-    {
-        liveContext?.UpdateTarget(CreateInteractiveTable(managedProjects));
-    }
-
-    private Table CreateInteractiveTable(IList<ManagedProject> managedProjects)
+    private Table CreateInteractiveTable()
     {
         var table = new Table();
 
@@ -259,11 +207,10 @@ public class InteractiveService
         table.Border(TableBorder.Rounded);
         table.BorderColor(Color.Grey);
 
-        // Add rows with selection highlighting
         for (int i = 0; i < managedProjects.Count; i++)
         {
             var mp = managedProjects[i];
-            var isSelected = this.ShowCursor() && (i == selectedIndex);
+            var isSelected = ShowCursor() && (i == selectedIndex);
 
             var rowStyle = isSelected ? "[on blue]" : "";
             var endStyle = isSelected ? "[/]" : "";
@@ -271,14 +218,13 @@ public class InteractiveService
             table.AddRow(
                 $"{rowStyle}{i + 1}{endStyle}",
                 $"{rowStyle}{GetProjectName(mp)}{endStyle}",
-                $"{rowStyle}{GetAnimatedStatusMarkup(mp)}{endStyle}", // Use animated version
+                $"{rowStyle}{GetAnimatedStatusMarkup(mp)}{endStyle}",
                 $"{rowStyle}{GetErrorCountMarkup(mp)}{endStyle}",
                 $"{rowStyle}{GetLastBuildMarkup(mp)}{endStyle}",
                 $"{rowStyle}{GetGitBranchMarkup(mp)}{endStyle}"
             );
         }
 
-        // Add hotkey instructions
         table.Caption("[dim]↑↓: Select | [bold]B[/]: Build | [bold]R[/]: Run | [bold]P[/]: Build+Run | [bold]E[/]: Errors | [bold]O[/]: Output | [bold]L[/]: Build Log | [bold]K[/]: Kill |  [bold]Shift-(Key)[/]: Perform action on all | [bold]Alt-Shift-(Key)[/]: Perform action on all, other then selected. | [bold]Q[/]: Quit[/]");
 
         return table;
@@ -368,52 +314,47 @@ public class InteractiveService
             return $"[yellow]({(int)timeSpan.TotalHours}h ago)[/]";
         if (timeSpan.TotalDays < 7)
             return $"[orange1]({(int)timeSpan.TotalDays}d ago)[/]";
-        
+
         return $"[red]({(int)timeSpan.TotalDays}d ago)[/]";
     }
 
     private void ShowBuildErrors(ManagedProject project)
     {
-        pauseDisplayUpdates = true;
+        fullScreenViewService.PauseUpdates();
         Task.Delay(200).Wait();
         outputService.PrintBuildErrors(project);
-        pauseDisplayUpdates = false;
+        fullScreenViewService.ResumeUpdates();
     }
 
     private void ShowProjectOutput(ManagedProject project)
     {
-        pauseDisplayUpdates = true;
+        fullScreenViewService.PauseUpdates();
         Task.Delay(200).Wait();
         outputService.PrintRunOutput(project);
-        pauseDisplayUpdates = false;
+        fullScreenViewService.ResumeUpdates();
     }
 
     private void ShowBuildOutput(ManagedProject project)
     {
-        pauseDisplayUpdates = true;
+        fullScreenViewService.PauseUpdates();
         Task.Delay(200).Wait();
         outputService.PrintBuildOutput(project);
-        pauseDisplayUpdates = false;
+        fullScreenViewService.ResumeUpdates();
     }
 
     private void StopProject(ManagedProject managedProject) => killService.KillProject(managedProject);
 
-    public void Stop()
-    {
-        isRunning = false;
-    }
-
     private void UpdateCursorHideTime()
     {
-        this.cursorHideTime = DateTime.Now.AddSeconds(this.optionService.HideCursorSeconds);
+        cursorHideTime = DateTime.Now.AddSeconds(optionService.HideCursorSeconds);
     }
 
     private bool ShowCursor()
     {
-        if( this.optionService.HideCursorSeconds == 0)
+        if (optionService.HideCursorSeconds == 0)
         {
             return true;
         }
-        return (DateTime.Now < cursorHideTime);
+        return DateTime.Now < cursorHideTime;
     }
 }

@@ -26,6 +26,7 @@ public class Program
         services.AddSingleton<RunService>();
         services.AddSingleton<BuildService>();
         services.AddSingleton<BuildRunService>();
+        services.AddSingleton<FullScreenViewService>();
         services.AddSingleton<InteractiveService>();
         services.AddSingleton<OutputService>();
         services.AddSingleton<KillService>();

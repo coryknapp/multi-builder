@@ -57,8 +57,22 @@ public class OutputService
             return;
         }
 
+        // Filter to only include errors, not warnings
+        var errorsOnly = managedProject.ErrorMessages
+            .Where(msg => msg.Contains(": error ", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (errorsOnly.Count == 0)
+        {
+            Console.WriteLine("No errors found (warnings filtered out).");
+            Console.WriteLine("----- Press Enter to return. -----");
+            _ = Console.ReadLine();
+            Console.Clear();
+            return;
+        }
+
         int errorCount = 0;
-        foreach (var error in managedProject.ErrorMessages)
+        foreach (var error in errorsOnly)
         {
             errorCount++;
             WriteErrorLine(error);
