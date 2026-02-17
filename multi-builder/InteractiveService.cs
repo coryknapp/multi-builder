@@ -143,6 +143,13 @@ public class InteractiveService
                         });
                         break;
 
+                    case ConsoleKey.E: // Show Errors
+                        ExecuteForProjects(mode, managedProjects, mp =>
+                        {
+                            ShowBuildErrors(mp);
+                        });
+                        break;
+
                     case ConsoleKey.O: // Show Output
                         ExecuteForProjects(mode, managedProjects, mp =>
                         {
@@ -251,7 +258,6 @@ public class InteractiveService
 
         table.Border(TableBorder.Rounded);
         table.BorderColor(Color.Grey);
-        table.Title("[bold cyan]Multi-Builder Interactive Mode[/]");
 
         // Add rows with selection highlighting
         for (int i = 0; i < managedProjects.Count; i++)
@@ -273,7 +279,7 @@ public class InteractiveService
         }
 
         // Add hotkey instructions
-        table.Caption("[dim]↑↓: Select | [bold]B[/]: Build | [bold]R[/]: Run | [bold]P[/]: Build+Run | [bold]O[/]: Output | [bold]L[/]: Build Log | [bold]K[/]: Kill |  [bold]Shift-(Key)[/]: Perform action on all | [bold]Alt-Shift-(Key)[/]: Perform action on all, other then selected. | [bold]Q[/]: Quit[/]");
+        table.Caption("[dim]↑↓: Select | [bold]B[/]: Build | [bold]R[/]: Run | [bold]P[/]: Build+Run | [bold]E[/]: Errors | [bold]O[/]: Output | [bold]L[/]: Build Log | [bold]K[/]: Kill |  [bold]Shift-(Key)[/]: Perform action on all | [bold]Alt-Shift-(Key)[/]: Perform action on all, other then selected. | [bold]Q[/]: Quit[/]");
 
         return table;
     }
@@ -340,7 +346,38 @@ public class InteractiveService
         {
             return "[dim]-[/]";
         }
-        return $"[cyan]{mp.GitBranch}[/]";
+
+        var pullTimeMarkup = this.GetLastPullTimeMarkup(mp.LastPullTime);
+        return $"[cyan]{mp.GitBranch}[/] {pullTimeMarkup}";
+    }
+
+    private string GetLastPullTimeMarkup(DateTime? lastPullTime)
+    {
+        if (!lastPullTime.HasValue)
+        {
+            return "[dim](no pull)[/]";
+        }
+
+        var timeSpan = DateTime.Now - lastPullTime.Value;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "[green](just now)[/]";
+        if (timeSpan.TotalMinutes < 60)
+            return $"[green]({(int)timeSpan.TotalMinutes}m ago)[/]";
+        if (timeSpan.TotalHours < 24)
+            return $"[yellow]({(int)timeSpan.TotalHours}h ago)[/]";
+        if (timeSpan.TotalDays < 7)
+            return $"[orange1]({(int)timeSpan.TotalDays}d ago)[/]";
+        
+        return $"[red]({(int)timeSpan.TotalDays}d ago)[/]";
+    }
+
+    private void ShowBuildErrors(ManagedProject project)
+    {
+        pauseDisplayUpdates = true;
+        Task.Delay(200).Wait();
+        outputService.PrintBuildErrors(project);
+        pauseDisplayUpdates = false;
     }
 
     private void ShowProjectOutput(ManagedProject project)

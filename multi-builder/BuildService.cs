@@ -180,6 +180,7 @@ public class BuildService
             managedProject.BuildFailure = false;
             managedProject.LastBuildTime = DateTime.Now;
             managedProject.GitBranch = await this.GitService.GetActiveBranchDisplayNameAsync(managedProject?.WorkingDirectory);
+            managedProject.LastPullTime = await this.GitService.GetLastPullTimeAsync(managedProject?.WorkingDirectory);
             this.BuildComplete?.Invoke(this, new BuildEventArgs(managedProject));
         }
     }

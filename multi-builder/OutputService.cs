@@ -16,7 +16,7 @@ public class OutputService
         Console.Clear();
         foreach (var line in managedProject.BuildOutput.Split(new[] { Environment.NewLine }, StringSplitOptions.None))
         {
-            WriteBuildOutputLine(line);
+            this.WriteBuildOutputLine(line);
         }
         Console.WriteLine("----- End of Build Output. Press Enter to return. -----");
         _ = Console.ReadLine();
@@ -35,9 +35,37 @@ public class OutputService
         }
         foreach (var line in managedProject.LiveOutput)
         {
-            WriteBuildOutputLine(line);
+            this.WriteRunOutputLine(line);
         }
         Console.WriteLine("----- End of Build Output. Press Enter to return. -----");
+        _ = Console.ReadLine();
+        Console.Clear();
+    }
+
+    public void PrintBuildErrors(ManagedProject managedProject)
+    {
+        Console.Clear();
+        Console.WriteLine($"===== Build Errors for {managedProject.Name} =====");
+        Console.WriteLine();
+
+        if (managedProject.ErrorMessages == null || !managedProject.ErrorMessages.Any())
+        {
+            Console.WriteLine("No error messages available.");
+            Console.WriteLine("----- Press Enter to return. -----");
+            _ = Console.ReadLine();
+            Console.Clear();
+            return;
+        }
+
+        int errorCount = 0;
+        foreach (var error in managedProject.ErrorMessages)
+        {
+            errorCount++;
+            WriteErrorLine(error);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"----- {errorCount} error(s). Press Enter to return. -----");
         _ = Console.ReadLine();
         Console.Clear();
     }
@@ -45,4 +73,6 @@ public class OutputService
     private void WriteBuildOutputLine(string line) => Console.WriteLine(line);
 
     private void WriteRunOutputLine(string line) => Console.WriteLine(line);
+
+    private void WriteErrorLine(string line) => Console.WriteLine(line);
 }

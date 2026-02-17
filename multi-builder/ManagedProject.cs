@@ -34,6 +34,7 @@ public class ManagedProject
     public List<string>? LiveOutput { get; set; }
 
     public string? GitBranch { get; set; }
+    public DateTime? LastPullTime { get; internal set; }
 
     private bool IsProcessRunning(Process? process)
     {

@@ -63,6 +63,26 @@ public class GitService
         }
     }
 
+    public async Task<DateTime?> GetLastPullTimeAsync(string directoryPath)
+    {
+        if (string.IsNullOrEmpty(directoryPath) || !Directory.Exists(directoryPath))
+            return null;
+
+        try
+        {
+            var fetchHeadPath = Path.Combine(directoryPath, ".git", "FETCH_HEAD");
+            if (File.Exists(fetchHeadPath))
+            {
+                return File.GetLastWriteTime(fetchHeadPath);
+            }
+        }
+        catch
+        {
+        }
+        return null;
+    }
+
+    // TODO this is display logic that should be elsewhere
     private string TruncateBranchName(string branchName)
     {
         if (branchName.Length <= this.OptionService.MaxGitBranchLength)
