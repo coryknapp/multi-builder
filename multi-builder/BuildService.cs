@@ -168,9 +168,9 @@ public class BuildService
 
             this.BuildFailed?.Invoke(this, new BuildEventArgs(managedProject));
             
-            if (IsContentiousResourceFailure(managedProject) && managedProject.RetryAttempts <= OptionService.MaxRetryAtempts)
+            if (IsContentiousResourceFailure(managedProject) && managedProject.RetryAttempts <= OptionService.MaxRetryAttempts)
             {
-                this.BuildRetried?.Invoke(this, new RetryEventArgs(managedProject, managedProject.RetryAttempts, OptionService.MaxRetryAtempts));
+                this.BuildRetried?.Invoke(this, new RetryEventArgs(managedProject, managedProject.RetryAttempts, OptionService.MaxRetryAttempts));
                 BuildQueue.Enqueue(managedProject);
                 return;
             }
