@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -27,14 +28,15 @@ public class ManagedProject
 
     public int RetryAttempts { get; set; } = 0;
 
-    public string? BuildOutput { get; set; }
-
     public DateTime? LastBuildTime { get; set; }
 
-    public List<string>? LiveOutput { get; set; }
-
     public string? GitBranch { get; set; }
+
     public DateTime? LastPullTime { get; internal set; }
+
+    public ConcurrentBag<LogLine> BuildLogs { get; } = new();
+
+    public ConcurrentBag<LogLine> RunLogs { get; } = new();
 
     private bool IsProcessRunning(Process? process)
     {

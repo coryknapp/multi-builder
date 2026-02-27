@@ -33,20 +33,19 @@ public class RunService
 
         var process = new Process { StartInfo = psi };
         managedProject.RunProcess = process;
-        managedProject.LiveOutput = new List<string>();
 
         process.OutputDataReceived += (sender, args) =>
         {
             if (args.Data != null)
             {
-                managedProject.LiveOutput.Add(args.Data);
+                managedProject.RunLogs.Add(new LogLine(args.Data, LogSource.RunStdOut));
             }
         };
         process.ErrorDataReceived += (sender, args) =>
         {
             if (args.Data != null)
             {
-                managedProject.LiveOutput.Add(args.Data);
+                managedProject.RunLogs.Add(new LogLine(args.Data, LogSource.RunStdErr));
             }
         };
 

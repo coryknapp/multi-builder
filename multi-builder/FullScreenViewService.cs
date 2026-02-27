@@ -4,54 +4,74 @@ using System.Threading.Tasks;
 
 public class FullScreenViewService
 {
-    private IFullScreenView? _currentView;
-    private bool _isRunning;
-    private bool _pauseUpdates;
-    private readonly object _viewLock = new();
+    private IFullScreenView? currentView;
+    private bool isRunning;
+    private bool pauseUpdates;
+    private bool pauseInput;
+    private readonly object viewLock = new();
 
     public async Task ShowViewAsync(IFullScreenView view, CancellationToken cancellationToken = default)
     {
-        lock (_viewLock)
+        lock (this.viewLock)
         {
-            _currentView = view;
-            _isRunning = true;
-            _pauseUpdates = false;
+            this.currentView = view;
+            this.isRunning = true;
+            this.pauseUpdates = false;
+            this.pauseInput = false;
         }
 
         view.OnActivated();
 
         try
         {
-            var inputTask = Task.Run(() => InputLoop(cancellationToken), cancellationToken);
-            var renderTask = Task.Run(() => RenderLoop(cancellationToken), cancellationToken);
+            var inputTask = Task.Run(() => this.InputLoop(cancellationToken), cancellationToken);
+            var renderTask = Task.Run(() => this.RenderLoop(cancellationToken), cancellationToken);
 
             await Task.WhenAny(inputTask, renderTask);
         }
         finally
         {
-            _isRunning = false;
+            this.isRunning = false;
             view.OnDeactivated();
         }
     }
 
-    public void PauseUpdates() => _pauseUpdates = true;
+    /// <summary>
+    /// Pauses both rendering and input handling.
+    /// </summary>
+    public void Pause()
+    {
+        this.pauseUpdates = true;
+        this.pauseInput = true;
+    }
 
-    public void ResumeUpdates() => _pauseUpdates = false;
+    /// <summary>
+    /// Resumes both rendering and input handling.
+    /// </summary>
+    public void Resume()
+    {
+        this.pauseUpdates = false;
+        this.pauseInput = false;
+    }
 
-    public void Stop() => _isRunning = false;
+    public void PauseUpdates() => this.pauseUpdates = true;
+
+    public void ResumeUpdates() => this.pauseUpdates = false;
+
+    public void Stop() => this.isRunning = false;
 
     private async Task RenderLoop(CancellationToken cancellationToken)
     {
-        while (_isRunning && !cancellationToken.IsCancellationRequested)
+        while (this.isRunning && !cancellationToken.IsCancellationRequested)
         {
             try
             {
-                if (!_pauseUpdates && _currentView != null)
+                if (!this.pauseUpdates && this.currentView != null)
                 {
-                    _currentView.Render();
+                    this.currentView.Render();
                 }
 
-                var interval = _currentView?.RefreshInterval ?? TimeSpan.FromMilliseconds(200);
+                var interval = this.currentView?.RefreshInterval ?? TimeSpan.FromMilliseconds(200);
                 await Task.Delay(interval, cancellationToken);
             }
             catch (OperationCanceledException)
@@ -67,10 +87,17 @@ public class FullScreenViewService
 
     private void InputLoop(CancellationToken cancellationToken)
     {
-        while (_isRunning && !cancellationToken.IsCancellationRequested)
+        while (this.isRunning && !cancellationToken.IsCancellationRequested)
         {
             try
             {
+                // When input is paused, don't consume any key input
+                if (this.pauseInput)
+                {
+                    Thread.Sleep(50);
+                    continue;
+                }
+
                 if (!Console.KeyAvailable)
                 {
                     Thread.Sleep(50);
@@ -79,12 +106,12 @@ public class FullScreenViewService
 
                 var keyInfo = Console.ReadKey(intercept: true);
 
-                if (_currentView != null)
+                if (this.currentView != null && !this.pauseInput)
                 {
-                    bool continueRunning = _currentView.HandleKey(keyInfo);
+                    bool continueRunning = currentView.HandleKey(keyInfo);
                     if (!continueRunning)
                     {
-                        _isRunning = false;
+                        this.isRunning = false;
                         return;
                     }
                 }
@@ -92,32 +119,6 @@ public class FullScreenViewService
             catch (OperationCanceledException)
             {
                 break;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Temporarily shows a different view (e.g., log viewer), then returns to the previous view.
-    /// </summary>
-    public async Task ShowModalViewAsync(IFullScreenView modalView, CancellationToken cancellationToken = default)
-    {
-        var previousView = _currentView;
-        var wasPaused = _pauseUpdates;
-
-        PauseUpdates();
-        await Task.Delay(100, cancellationToken); // Allow current render to complete
-
-        try
-        {
-            await ShowViewAsync(modalView, cancellationToken);
-        }
-        finally
-        {
-            lock (_viewLock)
-            {
-                _currentView = previousView;
-                _pauseUpdates = wasPaused;
-                _isRunning = previousView != null;
             }
         }
     }

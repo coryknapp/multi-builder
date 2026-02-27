@@ -11,7 +11,7 @@ public class InteractiveService : IFullScreenView
     private readonly BuildService buildService;
     private readonly RunService runService;
     private readonly BuildRunService buildRunService;
-    private readonly OutputService outputService;
+    private readonly LogOutputService logOutputService;
     private readonly KillService killService;
     private readonly GitService gitService;
     private readonly FullScreenViewService fullScreenViewService;
@@ -33,7 +33,7 @@ public class InteractiveService : IFullScreenView
         BuildService buildService,
         RunService runService,
         BuildRunService buildRunService,
-        OutputService outputService,
+        LogOutputService outputService,
         KillService killService,
         OptionService optionService,
         GitService gitService,
@@ -42,7 +42,7 @@ public class InteractiveService : IFullScreenView
         this.buildService = buildService;
         this.runService = runService;
         this.buildRunService = buildRunService;
-        this.outputService = outputService;
+        this.logOutputService = outputService;
         this.killService = killService;
         this.optionService = optionService;
         this.gitService = gitService;
@@ -320,26 +320,26 @@ public class InteractiveService : IFullScreenView
 
     private void ShowBuildErrors(ManagedProject project)
     {
-        fullScreenViewService.PauseUpdates();
-        Task.Delay(200).Wait();
-        outputService.PrintBuildErrors(project);
-        fullScreenViewService.ResumeUpdates();
+        ShowOutput(() => logOutputService.PrintBuildErrors(project));
     }
 
     private void ShowProjectOutput(ManagedProject project)
     {
-        fullScreenViewService.PauseUpdates();
-        Task.Delay(200).Wait();
-        outputService.PrintRunOutput(project);
-        fullScreenViewService.ResumeUpdates();
+        ShowOutput(() => logOutputService.PrintRunOutput(project));
     }
 
     private void ShowBuildOutput(ManagedProject project)
     {
-        fullScreenViewService.PauseUpdates();
+        ShowOutput(() => logOutputService.PrintBuildOutput(project));
+    }
+
+    private void ShowOutput( Action printAction)
+    {
+        liveContext?.UpdateTarget(new Text(""));
+        fullScreenViewService.Pause();
         Task.Delay(200).Wait();
-        outputService.PrintBuildOutput(project);
-        fullScreenViewService.ResumeUpdates();
+        printAction.Invoke();
+        fullScreenViewService.Resume();
     }
 
     private void StopProject(ManagedProject managedProject) => killService.KillProject(managedProject);

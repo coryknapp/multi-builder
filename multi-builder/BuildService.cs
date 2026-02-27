@@ -5,6 +5,7 @@ public class BuildService
 {
     private readonly OptionService OptionService;
     private readonly GitService GitService;
+    private readonly LogCollectorService LogCollectorService;
 
     private Queue<ManagedProject> BuildQueue = new Queue<ManagedProject>();
     private readonly SemaphoreSlim BuildQueueSemaphore;
@@ -16,10 +17,11 @@ public class BuildService
     public event EventHandler BuildRetried;
     public event EventHandler OutputFileWritten;
 
-    public BuildService(OptionService optionService, GitService gitService)
+    public BuildService(OptionService optionService, GitService gitService, LogCollectorService logCollectorService)
     {
         this.OptionService = optionService;
         this.GitService = gitService;
+        this.LogCollectorService = logCollectorService;
         BuildQueueSemaphore = new SemaphoreSlim(OptionService.ConcurrentBuildProcesses);
     }
 
@@ -85,7 +87,6 @@ public class BuildService
         }
         managedProject.BuildFailure = false;
         managedProject.RetryAttempts = 0;
-        managedProject.BuildOutput = null;
         managedProject.ErrorMessages = Array.Empty<string>();
         BuildQueue.Enqueue(managedProject);
     }
@@ -130,6 +131,9 @@ public class BuildService
 
     private async Task BuildProject(ManagedProject managedProject)
     {
+        // Clear previous build logs
+        LogCollectorService.ClearBuildLogs(managedProject);
+
         BuildStarted?.Invoke(this, new BuildEventArgs(managedProject));
         var psi = new ProcessStartInfo
         {
@@ -144,30 +148,44 @@ public class BuildService
 
         var process = new Process { StartInfo = psi };
         managedProject.BuildProcess = process;
-        process.Start();
 
-        string output = await process.StandardOutput.ReadToEndAsync();
-        string error = await process.StandardError.ReadToEndAsync();
+        // Set up real-time log collection
+        process.OutputDataReceived += (sender, args) =>
+        {
+            if (args.Data != null)
+            {
+                LogCollectorService.AddBuildLog(managedProject, args.Data, LogSource.BuildStdOut);
+            }
+        };
+        process.ErrorDataReceived += (sender, args) =>
+        {
+            if (args.Data != null)
+            {
+                LogCollectorService.AddBuildLog(managedProject, args.Data, LogSource.BuildStdErr);
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
 
         await process.WaitForExitAsync();
 
-        managedProject.BuildOutput = output + Environment.NewLine + error;
-
-        if (OptionService.DumpBuildOutputToFile)
-        {
-            var logFile = Path.Combine(managedProject.WorkingDirectory, $"{managedProject.Name}_build.log");
-            await File.WriteAllTextAsync(logFile, managedProject.BuildOutput);
-            this.OutputFileWritten?.Invoke(this, new OuputFileEventArgs(logFile));
-        }
+        // TODO handle this option with it's own dedicated service
+        //if (OptionService.DumpBuildOutputToFile)
+        //{
+        //    var logFile = Path.Combine(managedProject.WorkingDirectory, $"{managedProject.Name}_build.log");
+        //    await File.WriteAllTextAsync(logFile, managedProject.BuildOutput);
+        //    this.OutputFileWritten?.Invoke(this, new OuputFileEventArgs(logFile));
+        //}
 
         if (process.ExitCode == 1)
         {
             managedProject.BuildFailure = true;
             managedProject.RetryAttempts++;
-            managedProject.ErrorMessages = ProcessOutputForErrors(output);
 
             this.BuildFailed?.Invoke(this, new BuildEventArgs(managedProject));
-            
+
             if (IsContentiousResourceFailure(managedProject) && managedProject.RetryAttempts <= OptionService.MaxRetryAttempts)
             {
                 this.BuildRetried?.Invoke(this, new RetryEventArgs(managedProject, managedProject.RetryAttempts, OptionService.MaxRetryAttempts));
@@ -183,19 +201,6 @@ public class BuildService
             managedProject.LastPullTime = await this.GitService.GetLastPullTimeAsync(managedProject?.WorkingDirectory);
             this.BuildComplete?.Invoke(this, new BuildEventArgs(managedProject));
         }
-    }
-
-    private static IEnumerable<string> ProcessOutputForErrors(string output)
-    {
-        var lines = output.Split(output.Contains("\r\n") ? new[] { "\r\n" } : new[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-        // find lines that indicate an error
-        var afterFailed = lines
-            .SkipWhile(line => !line.Contains("Build FAILED."))
-            .Skip(1); // skip the "Build FAILED." line itself
-
-        // last three lines are not errors
-        return afterFailed.Take(Math.Max(0, afterFailed.Count() - 3));
     }
 }
 

@@ -28,7 +28,8 @@ public class Program
         services.AddSingleton<BuildRunService>();
         services.AddSingleton<FullScreenViewService>();
         services.AddSingleton<InteractiveService>();
-        services.AddSingleton<OutputService>();
+        services.AddSingleton<LogCollectorService>();
+        services.AddSingleton<LogOutputService>();
         services.AddSingleton<KillService>();
         services.AddSingleton<GitService>();
 
