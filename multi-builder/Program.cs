@@ -23,12 +23,14 @@ public class Program
         var services = new ServiceCollection();
 
         services.AddSingleton<OptionService>();
+        services.AddSingleton<LogCollectorService>();
+        services.AddSingleton<BuildErrorParserService>();
         services.AddSingleton<RunService>();
         services.AddSingleton<BuildService>();
         services.AddSingleton<BuildRunService>();
         services.AddSingleton<FullScreenViewService>();
+        services.AddSingleton<ErrorViewerService>();
         services.AddSingleton<InteractiveService>();
-        services.AddSingleton<LogCollectorService>();
         services.AddSingleton<LogOutputService>();
         services.AddSingleton<KillService>();
         services.AddSingleton<GitService>();

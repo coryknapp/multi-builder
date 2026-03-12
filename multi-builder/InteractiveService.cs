@@ -15,6 +15,7 @@ public class InteractiveService : IFullScreenView
     private readonly KillService killService;
     private readonly GitService gitService;
     private readonly FullScreenViewService fullScreenViewService;
+    private readonly ErrorViewerService errorViewerService;
 
     private IList<ManagedProject> managedProjects = [];
     private int selectedIndex = 0;
@@ -37,7 +38,8 @@ public class InteractiveService : IFullScreenView
         KillService killService,
         OptionService optionService,
         GitService gitService,
-        FullScreenViewService fullScreenViewService)
+        FullScreenViewService fullScreenViewService,
+        ErrorViewerService errorViewerService)
     {
         this.buildService = buildService;
         this.runService = runService;
@@ -47,6 +49,7 @@ public class InteractiveService : IFullScreenView
         this.optionService = optionService;
         this.gitService = gitService;
         this.fullScreenViewService = fullScreenViewService;
+        this.errorViewerService = errorViewerService;
     }
 
     public async Task StartInteractiveMode(IList<ManagedProject> projects, CancellationToken cancellationToken = default)
@@ -320,7 +323,18 @@ public class InteractiveService : IFullScreenView
 
     private void ShowBuildErrors(ManagedProject project)
     {
-        ShowOutput(() => logOutputService.PrintBuildErrors(project));
+        liveContext?.UpdateTarget(new Text(""));
+        errorViewerService.ShowErrors(project);
+        fullScreenViewService.Pause();
+        Console.Clear();
+        
+        // Run error viewer as modal view
+        Task.Run(async () => 
+        {
+            await fullScreenViewService.ShowViewAsync(errorViewerService);
+        }).Wait();
+        
+        fullScreenViewService.Resume();
     }
 
     private void ShowProjectOutput(ManagedProject project)
