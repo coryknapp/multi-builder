@@ -1,95 +1,50 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Spectre.Console;
-using System;
-using System.CommandLine;
-using System.CommandLine.Invocation;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
+﻿using Avalonia;
+using Microsoft.Extensions.DependencyInjection;
 
 public class Program
 {
-    static BuildService BuildService;
-    static OptionService OptionService;
-    static InteractiveService InteractiveHotkeyService;
-    static KillService KillService;
+    public static IServiceProvider Services { get; private set; } = null!;
 
-    static public IList<ManagedProject> ManagedProjects;
-    static private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-    static private bool isExiting = false;
-    private static object exitLock = new object();
+    [STAThread]
+    public static void Main(string[] args)
+    {
+        Services = ConfigureServices(args);
 
-    static async Task Main(string[] args)
+        BuildAvaloniaApp()
+            .StartWithClassicDesktopLifetime(args);
+    }
+
+    public static AppBuilder BuildAvaloniaApp()
+        => AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+            .LogToTrace();
+
+    private static IServiceProvider ConfigureServices(string[] args)
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<OptionService>();
+        // Parse options first
+        var optionService = new OptionService();
+        optionService.ParseOptions(args);
+
+        services.AddSingleton(optionService);
         services.AddSingleton<LogCollectorService>();
         services.AddSingleton<BuildErrorParserService>();
+        services.AddSingleton<KillService>();
+        services.AddSingleton<GitService>();
         services.AddSingleton<RunService>();
         services.AddSingleton<BuildService>();
         services.AddSingleton<BuildRunService>();
-        services.AddSingleton<FullScreenViewService>();
-        services.AddSingleton<ErrorViewerService>();
-        services.AddSingleton<InteractiveService>();
-        services.AddSingleton<LogOutputService>();
-        services.AddSingleton<KillService>();
-        services.AddSingleton<GitService>();
 
-        var serviceProvider = services.BuildServiceProvider();
-        
-        OptionService = serviceProvider.GetRequiredService<OptionService>();
-        OptionService.ParseOptions(args);
+        // Create managed projects
+        var managedProjects = optionService.Directories
+            .Select(d => new ManagedProject(Path.GetFileName(d), d))
+            .ToList();
+        services.AddSingleton<IList<ManagedProject>>(managedProjects);
 
-        BuildService = serviceProvider.GetRequiredService<BuildService>();
-        InteractiveHotkeyService = serviceProvider.GetRequiredService<InteractiveService>();
-        KillService = serviceProvider.GetRequiredService<KillService>();
+        // ViewModels
+        services.AddSingleton<MainViewModel>();
 
-        AppDomain.CurrentDomain.ProcessExit += (s, e) => PrepareToExit();
-        Console.CancelKeyPress += (s, e) =>
-        {
-            e.Cancel = true; // Prevent immediate termination
-            PrepareToExit();
-        };
-
-        AppDomain.CurrentDomain.UnhandledException += (s, e) => PrepareToExit();
-
-        InitalizeManagedProcessesDictionary();
-
-        _ = BuildService.StartBuildQueueProcessing();
-
-        await InteractiveHotkeyService.StartInteractiveMode(ManagedProjects, _cancellationTokenSource.Token);
-    }
-
-    private static void PrepareToExit()
-    {
-        lock (exitLock)
-        {
-            if (isExiting) return; // Prevent multiple cleanup attempts
-            isExiting = true;
-        }
-
-        InteractiveHotkeyService?.Stop();
-
-        var killTasks = new List<Task>();
-
-        foreach (var mp in ManagedProjects)
-        {
-            KillService.KillProject(mp, true);
-        }
-
-        // Wait for all kill operations with timeout
-        try
-        {
-            Task.WaitAll(killTasks.ToArray(), TimeSpan.FromSeconds(5));
-        }
-        catch (AggregateException ex)
-        {
-            AnsiConsole.MarkupLine($"[red]Some processes could not be killed cleanly: {ex.Message}[/]");
-        }
-    }
-
-    private static void InitalizeManagedProcessesDictionary()
-    {
-        ManagedProjects = OptionService.Directories.Select(d => new ManagedProject(Path.GetFileName(d), d)).ToList();
+        return services.BuildServiceProvider();
     }
 }
