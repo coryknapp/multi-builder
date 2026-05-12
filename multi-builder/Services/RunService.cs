@@ -38,14 +38,14 @@ public class RunService
         {
             if (args.Data != null)
             {
-                managedProject.RunLogs.Add(new LogLine(args.Data, LogSource.RunStdOut));
+                managedProject.RunLogs.Enqueue(new LogLine(args.Data, LogSource.RunStdOut));
             }
         };
         process.ErrorDataReceived += (sender, args) =>
         {
             if (args.Data != null)
             {
-                managedProject.RunLogs.Add(new LogLine(args.Data, LogSource.RunStdErr));
+                managedProject.RunLogs.Enqueue(new LogLine(args.Data, LogSource.RunStdErr));
             }
         };
 
