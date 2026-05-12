@@ -34,9 +34,9 @@ public class ManagedProject
 
     public DateTime? LastPullTime { get; internal set; }
 
-    public ConcurrentBag<LogLine> BuildLogs { get; } = new();
+    public ConcurrentQueue<LogLine> BuildLogs { get; } = new();
 
-    public ConcurrentBag<LogLine> RunLogs { get; } = new();
+    public ConcurrentQueue<LogLine> RunLogs { get; } = new();
 
     private bool IsProcessRunning(Process? process)
     {

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -37,7 +38,8 @@ public class MainWindow : Window
 
         this.Content = dockPanel;
 
-        this.KeyDown += this.OnKeyDown;
+        // Use AddHandler with RoutingStrategies.Tunnel to capture keys before controls consume them
+        this.AddHandler(KeyDownEvent, this.OnKeyDown, RoutingStrategies.Tunnel);
     }
 
     private Control CreateToolbar()
@@ -170,6 +172,19 @@ public class MainWindow : Window
             viewModel.SelectedProject = grid.SelectedItem as ProjectViewModel;
         };
 
+        // Prevent DataGrid from handling our hotkeys
+        grid.KeyDown += (s, e) =>
+        {
+            // Let these keys bubble up to the Window handler
+            if (e.Key == Key.B || e.Key == Key.R || e.Key == Key.P || 
+                e.Key == Key.K || e.Key == Key.L || e.Key == Key.O ||
+                e.Key == Key.Q || e.Key == Key.Escape)
+            {
+                // Don't mark as handled, let it bubble up
+                return;
+            }
+        };
+
         return grid;
     }
 
@@ -191,7 +206,12 @@ public class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // Skip if key is being used in a text input
+        if (e.Source is TextBox)
+            return;
+
         bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
 
         switch (e.Key)
         {
@@ -208,7 +228,16 @@ public class MainWindow : Window
                 break;
 
             case Key.P:
-                viewModel.BuildAndRunSelected();
+                if (shift) 
+                {
+                    // Shift+P: Build and run all
+                    viewModel.BuildAll();
+                    viewModel.RunAll();
+                }
+                else 
+                {
+                    viewModel.BuildAndRunSelected();
+                }
                 e.Handled = true;
                 break;
 

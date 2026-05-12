@@ -10,7 +10,7 @@ public class LogCollectorService
             return;
 
         var logLine = new LogLine(content, source);
-        project.BuildLogs.Add(logLine);
+        project.BuildLogs.Enqueue(logLine);
     }
 
     public void AddRunLog(ManagedProject project, string content, LogSource source)
@@ -19,17 +19,17 @@ public class LogCollectorService
             return;
 
         var logLine = new LogLine(content, source);
-        project.RunLogs.Add(logLine);
+        project.RunLogs.Enqueue(logLine);
     }
 
     public void ClearBuildLogs(ManagedProject project)
     {
-        while (project.BuildLogs.TryTake(out _)) { }
+        while (project.BuildLogs.TryDequeue(out _)) { }
     }
 
     public void ClearRunLogs(ManagedProject project)
     {
-        while (project.RunLogs.TryTake(out _)) { }
+        while (project.RunLogs.TryDequeue(out _)) { }
     }
 
     public IReadOnlyList<LogLine> GetBuildLogs(ManagedProject project)

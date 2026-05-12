@@ -29,6 +29,7 @@ public class Program
 
         services.AddSingleton(optionService);
         services.AddSingleton<LogCollectorService>();
+        services.AddSingleton<LogFileService>();
         services.AddSingleton<BuildErrorParserService>();
         services.AddSingleton<KillService>();
         services.AddSingleton<GitService>();

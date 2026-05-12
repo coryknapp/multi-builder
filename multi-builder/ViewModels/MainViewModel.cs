@@ -13,7 +13,7 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly BuildRunService buildRunService;
     private readonly KillService killService;
     private readonly DispatcherTimer refreshTimer;
-    private readonly LogCollectorService logCollectorService;
+    private readonly LogFileService logFileService;
 
     private ManagedProject? selectedProject;
 
@@ -37,13 +37,13 @@ public class MainViewModel : INotifyPropertyChanged
         RunService runService,
         BuildRunService buildRunService,
         KillService killService,
-        LogCollectorService logCollectorService)
+        LogFileService logFileService)
     {
         this.buildService = buildService;
         this.runService = runService;
         this.buildRunService = buildRunService;
         this.killService = killService;
-        this.logCollectorService = logCollectorService;
+        this.logFileService = logFileService;
 
         foreach (var project in managedProjects)
         {
@@ -118,33 +118,33 @@ public class MainViewModel : INotifyPropertyChanged
     public void ShowBuildLogs()
     {
         if (selectedProject != null)
-            LogViewerWindow.Show(selectedProject, logCollectorService, LogViewType.Build);
+            logFileService.OpenBuildLog(selectedProject);
     }
 
     public void ShowRunLogs()
     {
         if (selectedProject != null)
-            LogViewerWindow.Show(selectedProject, logCollectorService, LogViewType.Run);
+            logFileService.OpenRunLog(selectedProject);
     }
     public void ShowBuildLogs(ProjectViewModel project)
     {
-        LogViewerWindow.Show(project.Project, logCollectorService, LogViewType.Build);
+        logFileService.OpenBuildLog(project.Project);
     }
 
     public void ShowRunLogs(ProjectViewModel project)
     {
-        LogViewerWindow.Show(project.Project, logCollectorService, LogViewType.Run);
+        logFileService.OpenRunLog(project.Project);
     }
 
     public void ShowBuildLogsSelected()
     {
         if (selectedProject != null)
-            LogViewerWindow.Show(selectedProject, logCollectorService, LogViewType.Build);
+            logFileService.OpenBuildLog(selectedProject);
     }
 
     public void ShowRunLogsSelected()
     {
         if (selectedProject != null)
-            LogViewerWindow.Show(selectedProject, logCollectorService, LogViewType.Run);
+            logFileService.OpenRunLog(selectedProject);
     }
 }

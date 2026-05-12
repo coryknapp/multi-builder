@@ -2,6 +2,10 @@
   "profiles": {
     "multi-builder": {
       "commandName": "Project"
+    },
+    "multi-builder --help": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
     }
   }
 }
